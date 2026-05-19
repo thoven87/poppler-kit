@@ -20,24 +20,72 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Increased: poppler is compiled from source (~5–10 min on a 2-core runner)
+    timeout-minutes: 40
     container:
+      # Ubuntu 24.04 — supplies the build-time dependencies required by poppler 26
+      # (see poppler 26.05.0 release notes: "minimum dependencies = Ubuntu 24.04")
       image: swift:6.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # PopplerKit requires libpoppler-cpp-dev (C++ binding) and pkg-config
-      # (so SPM can resolve the poppler-cpp system library target).
-      # PopplerUtils tests call pdfimages, pdfinfo, pdftocairo etc., which
-      # come from poppler-utils.
-      - name: Install system dependencies
+      # ── poppler build dependencies ────────────────────────────────────────
+      # These are the libraries poppler's cmake will detect and link against.
+      # We do NOT install libpoppler-cpp-dev from apt — we build from source below.
+      - name: Install poppler build dependencies
         run: |
           apt-get update -q
           apt-get install -y --no-install-recommends \
-            libpoppler-cpp-dev \
+            build-essential \
+            cmake \
+            wget \
             pkg-config \
-            poppler-utils
+            libfreetype-dev \
+            libfontconfig-dev \
+            libjpeg-dev \
+            libpng-dev \
+            libtiff-dev \
+            libopenjp2-7-dev \
+            zlib1g-dev \
+            liblcms2-dev \
+            libnss3-dev \
+            libcairo2-dev \
+            xz-utils
+
+      # ── Build and install poppler 26.05.0 ────────────────────────────────
+      # PopplerKit requires >= 26.05.0 (enforced by static_assert in the bridge).
+      # We install to /usr so pkg-config can find poppler-cpp.pc automatically.
+      - name: Build and install poppler 26.05.0
+        run: |
+          cd /tmp
+          wget -q https://poppler.freedesktop.org/poppler-26.05.0.tar.xz
+          tar -xJf poppler-26.05.0.tar.xz
+
+          cmake -S poppler-26.05.0 -B poppler-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DENABLE_BOOST=OFF \
+            -DENABLE_QT5=OFF \
+            -DENABLE_QT6=OFF \
+            -DENABLE_GLIB=OFF \
+            -DENABLE_GOBJECT_INTROSPECTION=OFF \
+            -DENABLE_LIBCURL=OFF \
+            -DENABLE_CPP=ON \
+            -DENABLE_UTILS=ON \
+            -DENABLE_LIBOPENJPEG=openjpeg2 \
+            -DBUILD_GTK_TESTS=OFF \
+            -DBUILD_QT5_TESTS=OFF \
+            -DBUILD_QT6_TESTS=OFF \
+            -DBUILD_CPP_TESTS=OFF \
+            -DBUILD_MANUAL_TESTS=OFF
+
+          cmake --build poppler-build --parallel "$(nproc)"
+          cmake --install poppler-build
+          ldconfig
+
+          # Sanity-check: pkg-config must resolve the library after install
+          pkg-config --modversion poppler-cpp
 
       - name: Build
         run: swift build

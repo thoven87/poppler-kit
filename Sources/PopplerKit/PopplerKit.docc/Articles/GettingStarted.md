@@ -23,11 +23,45 @@ Add PopplerKit to your project and extract text from a PDF in minutes.
 brew install pkg-config poppler
 ```
 
-### Linux / CI
+`pkg-config` is required — Swift Package Manager uses it to locate the
+`poppler-cpp` headers and library flags via `pkg-config poppler-cpp`.  
+Homebrew tracks the latest stable poppler release.
+
+### Linux — build from source
+
+PopplerKit requires poppler ≥ 26.05.0. Linux distributions do not yet ship this
+version in their package managers, so you must build poppler from source.
+Ubuntu 24.04 LTS provides all the required build-time dependencies.
 
 ```bash
-apt-get update && apt-get install -y libpoppler-cpp-dev pkg-config
+# 1. Install build dependencies (Ubuntu 24.04+)
+apt-get install -y build-essential cmake wget pkg-config \
+  libfreetype-dev libfontconfig-dev libjpeg-dev libpng-dev libtiff-dev \
+  libopenjp2-7-dev zlib1g-dev liblcms2-dev libnss3-dev libcairo2-dev xz-utils
+
+# 2. Download and build poppler 26.05.0
+cd /tmp
+wget https://poppler.freedesktop.org/poppler-26.05.0.tar.xz
+tar -xJf poppler-26.05.0.tar.xz
+
+cmake -S poppler-26.05.0 -B poppler-build \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_INSTALL_PREFIX=/usr \
+  -DENABLE_BOOST=OFF -DENABLE_QT5=OFF -DENABLE_QT6=OFF \
+  -DENABLE_GLIB=OFF -DENABLE_LIBCURL=OFF \
+  -DENABLE_CPP=ON -DENABLE_UTILS=ON \
+  -DENABLE_LIBOPENJPEG=openjpeg2
+
+cmake --build poppler-build --parallel "$(nproc)"
+cmake --install poppler-build
+ldconfig
+
+# 3. Verify
+pkg-config --modversion poppler-cpp   # should print 26.05.0
 ```
+
+> **Docker / Cloud Run:** Use `swift:6.3` (Ubuntu 24.04) as your base image.
+> The CI workflows in this repository demonstrate the exact build steps.
 
 ### Swift Package Manager
 

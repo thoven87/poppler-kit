@@ -16,21 +16,24 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Minimum poppler version required by PopplerKit.
 //
-//   Ubuntu 24.04 LTS ships 24.02.0  (apt-get install libpoppler-cpp-dev)
-//   macOS Homebrew          ships 26.x  (brew install poppler)
+//   PopplerKit is tested against and requires poppler 26.05.0 or later.
+//   Poppler 26.x must be built from source on Linux (Ubuntu 24.04 provides
+//   the necessary build dependencies).  See GettingStarted in the DocC docs.
 //
-// Encoding: major*10000 + minor*100 + micro  (e.g. 24.02.0 → 240200)
+//   macOS: brew install poppler  (Homebrew tracks the latest stable release)
+//
+// Encoding: major*10000 + minor*100 + micro  (e.g. 26.05.0 → 260500)
 // ─────────────────────────────────────────────────────────────────────────────
 #define POPPLER_KIT_ENCODE(maj, min, mic)  ((maj)*10000 + (min)*100 + (mic))
 #define POPPLER_KIT_VERSION_INSTALLED \
     POPPLER_KIT_ENCODE(POPPLER_VERSION_MAJOR, POPPLER_VERSION_MINOR, POPPLER_VERSION_MICRO)
-#define POPPLER_KIT_VERSION_MIN  POPPLER_KIT_ENCODE(24, 2, 0)
+#define POPPLER_KIT_VERSION_MIN  POPPLER_KIT_ENCODE(26, 5, 0)
 
 static_assert(
     POPPLER_KIT_VERSION_INSTALLED >= POPPLER_KIT_VERSION_MIN,
-    "PopplerKit requires poppler >= 24.02.0.  "
-    "Install: apt-get install libpoppler-cpp-dev (Ubuntu 24.04+)  "
-    "     or: brew install poppler              (macOS)");
+    "PopplerKit requires poppler >= 26.05.0.  "
+    "Build from source: https://poppler.freedesktop.org/poppler-26.05.0.tar.xz  "
+    "macOS: brew install poppler");
 
 typedef void* PopplerDocPtr;
 typedef void* PopplerPagePtr;

@@ -4,95 +4,72 @@ Deploy PopplerKit on Linux containers, GCP Cloud Run, and other serverless runti
 
 ## Choosing your system dependencies
 
+PopplerKit requires **poppler ≥ 26.05.0**, which must be compiled from source
+(Ubuntu 24.04 is the minimum build host). The Dockerfiles below incorporate
+the source build as a dedicated stage that can be cached between runs.
+
 | Product | Build-time | Runtime |
 |---|---|---|
-| `PopplerKit` (C++ binding) | `libpoppler-cpp-dev`, `pkg-config` | `libpoppler-cpp0v5` |
-| `PopplerUtils` (subprocesses) | *(nothing extra)* | `poppler-utils` |
-| Both products | `libpoppler-cpp-dev`, `pkg-config` | `libpoppler-cpp0v5`, `poppler-utils` |
+| `PopplerKit` (C++ binding) | poppler 26.05.0 built from source | `libpoppler-cpp.so` (installed via cmake) |
+| `PopplerUtils` (subprocesses) | *(nothing extra)* | CLI tools from the same build (`ENABLE_UTILS=ON`) |
+| Both products | poppler 26.05.0 from source | same runtime |
 
-## Dockerfile: PopplerKit only
+The poppler build step is identical across all three variants; only the
+Swift build and the set of enabled cmake features differ.
 
-Use this when you only need in-process text extraction and rendering (`import PopplerKit`).
+## Dockerfile: PopplerKit + PopplerUtils (recommended)
+
+A three-stage build: compile poppler from source, compile the Swift app, assemble the
+runtime image.  The poppler stage can be cached independently across app rebuilds.
 
 ```dockerfile
-# ── Build stage ──────────────────────────────────────────────────────────────
-FROM swift:6.0-jammy AS builder
+# ── Stage 1: build poppler 26.05.0 from source ───────────────────────────────────────
+FROM swift:6.3 AS poppler-builder
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpoppler-cpp-dev \
-        pkg-config \
+RUN apt-get update -q && apt-get install -y --no-install-recommends \
+      build-essential cmake wget pkg-config \
+      libfreetype-dev libfontconfig-dev libjpeg-dev libpng-dev libtiff-dev \
+      libopenjp2-7-dev zlib1g-dev liblcms2-dev libnss3-dev libcairo2-dev \
+      xz-utils \
     && rm -rf /var/lib/apt/lists/*
+
+RUN cd /tmp \
+    && wget -q https://poppler.freedesktop.org/poppler-26.05.0.tar.xz \
+    && tar -xJf poppler-26.05.0.tar.xz \
+    && cmake -S poppler-26.05.0 -B poppler-build \
+         -DCMAKE_BUILD_TYPE=Release \
+         -DCMAKE_INSTALL_PREFIX=/usr \
+         -DENABLE_BOOST=OFF -DENABLE_QT5=OFF -DENABLE_QT6=OFF \
+         -DENABLE_GLIB=OFF -DENABLE_LIBCURL=OFF \
+         -DENABLE_CPP=ON -DENABLE_UTILS=ON \
+         -DENABLE_LIBOPENJPEG=openjpeg2 \
+         -DBUILD_GTK_TESTS=OFF -DBUILD_CPP_TESTS=OFF -DBUILD_MANUAL_TESTS=OFF \
+    && cmake --build poppler-build --parallel "$(nproc)" \
+    && cmake --install poppler-build
+
+# ── Stage 2: build the Swift app ───────────────────────────────────────────────────────
+FROM poppler-builder AS app-builder
 
 WORKDIR /build
 COPY . .
 RUN swift build -c release --product YourApp
 
-# ── Runtime stage ─────────────────────────────────────────────────────────────
-FROM swift:6.0-jammy-slim
+# ── Stage 3: minimal runtime ─────────────────────────────────────────────────────────────
+FROM swift:6.3-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpoppler-cpp0v5 \
-    && rm -rf /var/lib/apt/lists/*
+# Copy the runtime libs installed by poppler's cmake --install
+COPY --from=poppler-builder /usr/lib/libpoppler*.so* /usr/lib/
+COPY --from=poppler-builder /usr/bin/pdf*            /usr/bin/
 
-COPY --from=builder /build/.build/release/YourApp /usr/local/bin/app
+RUN ldconfig
+
+COPY --from=app-builder /build/.build/release/YourApp /usr/local/bin/app
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/app"]
 ```
 
-## Dockerfile: PopplerUtils only
-
-Use this when you only need CLI-backed operations (split, merge, SVG, signing) and `libpoppler-cpp`
-is not required.
-
-```dockerfile
-# ── Build stage ──────────────────────────────────────────────────────────────
-FROM swift:6.0-jammy AS builder
-
-WORKDIR /build
-COPY . .
-RUN swift build -c release --product YourApp
-
-# ── Runtime stage ─────────────────────────────────────────────────────────────
-FROM swift:6.0-jammy-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /build/.build/release/YourApp /usr/local/bin/app
-EXPOSE 8080
-ENTRYPOINT ["/usr/local/bin/app"]
-```
-
-## Dockerfile: both PopplerKit and PopplerUtils
-
-The most common deployment — full feature set.
-
-```dockerfile
-# ── Build stage ──────────────────────────────────────────────────────────────
-FROM swift:6.0-jammy AS builder
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpoppler-cpp-dev \
-        pkg-config \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-COPY . .
-RUN swift build -c release --product YourApp
-
-# ── Runtime stage ─────────────────────────────────────────────────────────────
-FROM swift:6.0-jammy-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libpoppler-cpp0v5 \
-        poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY --from=builder /build/.build/release/YourApp /usr/local/bin/app
-EXPOSE 8080
-ENTRYPOINT ["/usr/local/bin/app"]
-```
+> The runtime stage only copies the `.so` files and CLI tools — not headers,
+> pkg-config files, or the cmake build tree — keeping the final image small.
 
 ## Cloud Run configuration
 

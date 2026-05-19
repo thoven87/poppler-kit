@@ -6,16 +6,6 @@ import PackageDescription
 let package = Package(
     name: "poppler-kit",
     platforms: [
-        // Deployment target — the minimum macOS version that *apps built with PopplerKit* can run on.
-        //
-        // macOS 15 is required for `Synchronization.Mutex`, which backs the thread-safety
-        // guarantees of `PopplerDocument`.  On Linux (the primary server target) Swift 5.10+
-        // provides `Synchronization` regardless of macOS version, so Cloud Run / Ubuntu
-        // deployments are unaffected.
-        //
-        // To develop you need Xcode 16+ (macOS 14.5+) or Xcode 17+ (macOS 16+).
-        // If you are on macOS 16 (Tahoe) that is fine — you are building *with* a
-        // newer OS, not restricting who can run the resulting app to macOS 15+ only.
         .macOS(.v15)
     ],
     products: [

@@ -20,9 +20,11 @@ Swift 6 PDF library for macOS and Linux, built on [Poppler](https://poppler.free
 ```
 
 ```bash
-brew install pkg-config poppler          # macOS (develop on macOS 14.5+, target macOS 13+)
-apt-get install libpoppler-cpp-dev       # Linux / Docker (PopplerKit)
-apt-get install poppler-utils            # Linux / Docker (PopplerUtils)
+# macOS — both are required: pkg-config is used by SPM to resolve poppler-cpp headers
+brew install pkg-config poppler
+
+# Linux / Docker — poppler 26.05.0 must be built from source (Ubuntu 24.04 provides deps)
+# See the DocC GettingStarted guide or the CI workflows for the exact cmake invocation.
 ```
 
 ## Quick start

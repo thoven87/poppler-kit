@@ -13,7 +13,8 @@ permissions:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Increased: poppler is compiled from source
+    timeout-minutes: 40
     container:
       image: swift:6.3
     steps:
@@ -29,14 +30,55 @@ jobs:
       - name: Mark workspace as safe
         run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
 
-      # The C++ system library must be present so SPM can resolve CPoppler
-      # and compile the module interfaces used by the API diff tool.
-      - name: Install system dependencies
+      - name: Install poppler build dependencies
         run: |
           apt-get update -q
           apt-get install -y --no-install-recommends \
-            libpoppler-cpp-dev \
-            pkg-config
+            build-essential \
+            cmake \
+            wget \
+            pkg-config \
+            libfreetype-dev \
+            libfontconfig-dev \
+            libjpeg-dev \
+            libpng-dev \
+            libtiff-dev \
+            libopenjp2-7-dev \
+            zlib1g-dev \
+            liblcms2-dev \
+            libnss3-dev \
+            libcairo2-dev \
+            xz-utils
+
+      - name: Build and install poppler 26.05.0
+        run: |
+          cd /tmp
+          wget -q https://poppler.freedesktop.org/poppler-26.05.0.tar.xz
+          tar -xJf poppler-26.05.0.tar.xz
+
+          cmake -S poppler-26.05.0 -B poppler-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DENABLE_BOOST=OFF \
+            -DENABLE_QT5=OFF \
+            -DENABLE_QT6=OFF \
+            -DENABLE_GLIB=OFF \
+            -DENABLE_GOBJECT_INTROSPECTION=OFF \
+            -DENABLE_LIBCURL=OFF \
+            -DENABLE_CPP=ON \
+            -DENABLE_UTILS=OFF \
+            -DENABLE_LIBOPENJPEG=openjpeg2 \
+            -DBUILD_GTK_TESTS=OFF \
+            -DBUILD_QT5_TESTS=OFF \
+            -DBUILD_QT6_TESTS=OFF \
+            -DBUILD_CPP_TESTS=OFF \
+            -DBUILD_MANUAL_TESTS=OFF
+
+          cmake --build poppler-build --parallel "$(nproc)"
+          cmake --install poppler-build
+          ldconfig
+
+          pkg-config --modversion poppler-cpp
 
       - name: Check for API breaking changes
         run: |
