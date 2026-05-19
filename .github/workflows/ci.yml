@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**.swift"
+      - "**.yml"
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-ci
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container:
+      image: swift:6.2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # PopplerKit requires libpoppler-cpp-dev (C++ binding) and pkg-config
+      # (so SPM can resolve the poppler-cpp system library target).
+      # PopplerUtils tests call pdfimages, pdfinfo, pdftocairo etc., which
+      # come from poppler-utils.
+      - name: Install system dependencies
+        run: |
+          apt-get update -q
+          apt-get install -y --no-install-recommends \
+            libpoppler-cpp-dev \
+            pkg-config \
+            poppler-utils
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test

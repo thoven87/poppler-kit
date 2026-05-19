@@ -1,0 +1,43 @@
+name: API breaking changes
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-apibreakage
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: swift:6.2
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history is required so the tool can diff against the base branch
+          fetch-depth: 0
+
+      # actions/checkout inside a container doesn't inherit the host's safe-directory
+      # config, causing git to refuse operations on the workspace.
+      # https://github.com/actions/checkout/issues/766
+      - name: Mark workspace as safe
+        run: git config --global --add safe.directory "${GITHUB_WORKSPACE}"
+
+      # The C++ system library must be present so SPM can resolve CPoppler
+      # and compile the module interfaces used by the API diff tool.
+      - name: Install system dependencies
+        run: |
+          apt-get update -q
+          apt-get install -y --no-install-recommends \
+            libpoppler-cpp-dev \
+            pkg-config
+
+      - name: Check for API breaking changes
+        run: |
+          swift package diagnose-api-breaking-changes origin/${GITHUB_BASE_REF}

@@ -1,0 +1,39 @@
+# ==============================================================================
+# Example Dockerfile for GCP Cloud Run
+# ==============================================================================
+# This shows how to deploy a Swift 6 application that depends on PopplerKit.
+# GCP Cloud Run uses Linux containers (usually Debian or Ubuntu-based).
+
+# Stage 1: Build
+FROM swift:6.0-jammy as builder
+
+# 1. Install system dependencies required to build the CPoppler system library.
+# We need `libpoppler-cpp-dev` which includes the headers and pkg-config files.
+RUN apt-get update && apt-get install -y \
+    libpoppler-cpp-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+# 2. Build the application
+# Replace `YourAppExecutable` with the actual name of your executable target
+RUN swift build -c release
+
+# Stage 2: Runtime
+FROM ubuntu:jammy
+
+# 3. Install runtime dependencies.
+# We only need the shared libraries at runtime, not the `-dev` headers.
+RUN apt-get update && apt-get install -y \
+    libpoppler-cpp0v5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 4. Copy the compiled Swift executable
+# Replace `YourAppExecutable` with the actual name of your executable
+# COPY --from=builder /app/.build/release/YourAppExecutable /usr/local/bin/
+
+EXPOSE 8080
+
+# CMD ["YourAppExecutable"]

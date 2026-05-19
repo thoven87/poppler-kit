@@ -1,0 +1,6 @@
+module CPoppler [system] {
+    header "poppler_bridge.h"
+    requires cplusplus
+    link "poppler-cpp"
+    export *
+}
