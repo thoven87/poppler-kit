@@ -178,14 +178,6 @@ extension PopplerPage {
         var pastHeaders = false
 
         for row in rawRows {
-            // Leftmost non-empty box (left → right sort gives the "first column" box)
-            let leftmostBox =
-                row
-                .sorted { $0.boundingBox.left < $1.boundingBox.left }
-                .first { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
-            let leftmost = leftmostBox?.text.trimmingCharacters(in: .whitespaces) ?? ""
-            let startsWithDigit = leftmost.first?.isNumber == true
-
             let words = row.map { $0.text.uppercased() }
             let hasKeyword = headerKeywords.contains { kw in
                 words.contains { $0.contains(kw) }
