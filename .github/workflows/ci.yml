@@ -38,7 +38,7 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential cmake pkg-config wget xz-utils \
             libjpeg-dev libopenjp2-7-dev libfontconfig1-dev \
-            libglib2.0-dev
+            libglib2.0-dev libnss3-dev
 
       # Build and install poppler 26.05.0 from source.
       # cmake auto-detects available features; we only override the install
