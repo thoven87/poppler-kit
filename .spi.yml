@@ -1,0 +1,22 @@
+version: 1
+
+builder:
+  configs:
+    # ── Linux / Swift 6.2 ────────────────────────────────────────────────────
+    # This is a server-side library; Linux is the primary deployment target.
+    #
+    # ⚠️  System dependency note
+    # PopplerKit wraps `libpoppler-cpp` via a `systemLibrary` SPM target that
+    # resolves through `pkg-config: "poppler-cpp"`.  If SPI's build image does
+    # not have `libpoppler-cpp-dev` and `pkg-config` installed, DocC generation
+    # for the PopplerKit target will fail at the pkg-config resolution step.
+    #
+    # PopplerUtils is pure Swift (no system dependency) and will always build.
+    #
+    # To install the required packages on Ubuntu:
+    #   apt-get install -y libpoppler-cpp-dev pkg-config poppler-utils
+    - documentation_targets:
+        - PopplerKit    # listed first — displayed by default on SPI
+        - PopplerUtils
+      platform: linux
+      swift_version: "6.2"

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <poppler-version.h>  // POPPLER_VERSION_MAJOR / _MINOR / _MICRO
 #include <poppler-document.h>
 #include <poppler-page.h>
 #include <poppler-image.h>
@@ -11,6 +12,25 @@
 #include <poppler-page-transition.h>
 #include <poppler-font.h>
 #include <string>
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Minimum poppler version required by PopplerKit.
+//
+//   Ubuntu 24.04 LTS ships 24.02.0  (apt-get install libpoppler-cpp-dev)
+//   macOS Homebrew          ships 26.x  (brew install poppler)
+//
+// Encoding: major*10000 + minor*100 + micro  (e.g. 24.02.0 → 240200)
+// ─────────────────────────────────────────────────────────────────────────────
+#define POPPLER_KIT_ENCODE(maj, min, mic)  ((maj)*10000 + (min)*100 + (mic))
+#define POPPLER_KIT_VERSION_INSTALLED \
+    POPPLER_KIT_ENCODE(POPPLER_VERSION_MAJOR, POPPLER_VERSION_MINOR, POPPLER_VERSION_MICRO)
+#define POPPLER_KIT_VERSION_MIN  POPPLER_KIT_ENCODE(24, 2, 0)
+
+static_assert(
+    POPPLER_KIT_VERSION_INSTALLED >= POPPLER_KIT_VERSION_MIN,
+    "PopplerKit requires poppler >= 24.02.0.  "
+    "Install: apt-get install libpoppler-cpp-dev (Ubuntu 24.04+)  "
+    "     or: brew install poppler              (macOS)");
 
 typedef void* PopplerDocPtr;
 typedef void* PopplerPagePtr;
@@ -227,9 +247,9 @@ inline PopplerEmbeddedFilePtr poppler_embedded_file_list_get_item(PopplerEmbedde
     return vec[index];
 }
 inline std::string poppler_embedded_file_get_name(PopplerEmbeddedFilePtr file) {
-    poppler::ustring ustr = static_cast<poppler::embedded_file*>(file)->unicodeName();
-    poppler::byte_array bytes = ustr.to_utf8();
-    return std::string(bytes.begin(), bytes.end());
+    // name() returns std::string directly in the poppler-cpp wrapper.
+    // unicodeName() is a GLib/Qt API and does not exist in poppler-cpp.
+    return static_cast<poppler::embedded_file*>(file)->name();
 }
 inline std::string poppler_embedded_file_get_mime_type(PopplerEmbeddedFilePtr file) {
     return static_cast<poppler::embedded_file*>(file)->mime_type();
