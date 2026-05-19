@@ -34,7 +34,7 @@ jobs:
         run: |
           apt-get update -q
           apt-get install -y --no-install-recommends \
-            cmake g++ pkg-config wget \
+            cmake g++ pkg-config wget xz-utils \
             libjpeg-dev libopenjp2-7-dev libfontconfig1-dev \
             libglib2.0-dev
 
