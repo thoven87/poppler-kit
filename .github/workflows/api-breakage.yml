@@ -36,7 +36,8 @@ jobs:
           apt-get install -y --no-install-recommends \
             build-essential cmake pkg-config wget xz-utils \
             libjpeg-dev libopenjp2-7-dev libfontconfig1-dev \
-            libglib2.0-dev libnss3-dev
+            libglib2.0-dev libnss3-dev libtiff-dev \
+            liblcms2-dev libpng-dev zlib1g-dev libcairo2-dev
 
       # ENABLE_UTILS=OFF: CLI tools are not needed for the API diff check,
       # so we skip them to reduce build time.
