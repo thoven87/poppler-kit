@@ -52,6 +52,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=/usr \
             -DENABLE_QT5=OFF \
             -DENABLE_QT6=OFF \
+            -DENABLE_GPGME=OFF \
             -DENABLE_UTILS=OFF
           make -j"$(nproc)"
           make install
