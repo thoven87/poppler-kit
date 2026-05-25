@@ -1,4 +1,4 @@
-import CPoppler
+internal import CPopplerBridge
 import Foundation
 
 /// A file attachment embedded within a PDF document.
@@ -34,14 +34,14 @@ public struct PopplerEmbeddedFile: Sendable {
     internal init?(filePtr: PopplerEmbeddedFilePtr) {
         guard poppler_embedded_file_is_valid(filePtr) else { return nil }
 
-        self.name = String(poppler_embedded_file_get_name(filePtr))
-        self.mimeType = String(poppler_embedded_file_get_mime_type(filePtr))
+        self.name = String(cString: poppler_embedded_file_get_name(filePtr))
+        self.mimeType = String(cString: poppler_embedded_file_get_mime_type(filePtr))
         self.size = Int(poppler_embedded_file_get_size(filePtr))
 
-        let desc = String(poppler_embedded_file_get_description(filePtr))
+        let desc = String(cString: poppler_embedded_file_get_description(filePtr))
         self.fileDescription = desc.isEmpty ? nil : desc
 
-        let hex = String(poppler_embedded_file_get_checksum(filePtr))
+        let hex = String(cString: poppler_embedded_file_get_checksum(filePtr))
         self.checksum = hex.isEmpty ? nil : hex
 
         let cDate = poppler_embedded_file_get_creation_date(filePtr)

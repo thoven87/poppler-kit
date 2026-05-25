@@ -1,4 +1,4 @@
-import CPoppler
+internal import CPopplerBridge
 import Foundation
 
 /// A rectangle in PDF coordinate space (PDF points; 1 pt = 1⁄72 inch).
@@ -30,7 +30,7 @@ public struct PopplerRect: Sendable, Equatable {
         self.bottom = bottom
     }
 
-    internal init(cRect: CPoppler.PopplerRect) {
+    internal init(cRect: CPopplerBridge.PopplerRect) {
         self.left = cRect.left
         self.top = cRect.top
         self.right = cRect.right

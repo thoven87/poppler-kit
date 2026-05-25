@@ -1,5 +1,5 @@
+internal import CPopplerBridge
 import Foundation
-import CPoppler
 
 public enum PopplerImageFormat: Int, Sendable {
     case invalid = 0
@@ -22,17 +22,17 @@ public struct PopplerImage: Sendable {
     public let format: PopplerImageFormat
     /// The raw byte data. For RGB24, this will be sequentially stored R, G, B bytes.
     public let data: Data
-    
+
     internal init(imagePtr: PopplerImagePtr) {
         self.width = Int(poppler_image_get_width(imagePtr))
         self.height = Int(poppler_image_get_height(imagePtr))
         self.bytesPerRow = Int(poppler_image_get_bytes_per_row(imagePtr))
         let formatInt = Int(poppler_image_get_format(imagePtr))
         self.format = PopplerImageFormat(rawValue: formatInt) ?? .invalid
-        
+
         let rawData = poppler_image_get_data(imagePtr)
         let totalBytes = self.bytesPerRow * self.height
-        
+
         if totalBytes > 0, let rawData = rawData {
             self.data = Data(bytes: rawData, count: totalBytes)
         } else {

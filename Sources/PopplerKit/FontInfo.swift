@@ -1,4 +1,4 @@
-import CPoppler
+internal import CPopplerBridge
 import Foundation
 
 /// Metadata about a single font referenced or embedded in a PDF document.
@@ -23,8 +23,8 @@ public struct PopplerFontInfo: Sendable {
     public let isSubset: Bool
 
     internal init(fontPtr: PopplerFontInfoPtr) {
-        self.name = String(poppler_font_info_get_name(fontPtr))
-        self.file = String(poppler_font_info_get_file(fontPtr))
+        self.name = String(cString: poppler_font_info_get_name(fontPtr))
+        self.file = String(cString: poppler_font_info_get_file(fontPtr))
         self.type = PopplerFontType(rawValue: poppler_font_info_get_type(fontPtr)) ?? .unknown
         self.isEmbedded = poppler_font_info_is_embedded(fontPtr)
         self.isSubset = poppler_font_info_is_subset(fontPtr)

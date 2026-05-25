@@ -26,30 +26,28 @@ let package = Package(
             name: "CPoppler",
             pkgConfig: "poppler-cpp",
             providers: [
-                // apt installs an older version; the static_assert in poppler_bridge.h
-                // will then direct the user to build 26.05.0 from source.
                 .apt(["libpoppler-cpp-dev"]),
-                // Both are required on macOS: pkg-config is used by SPM to locate
-                // the poppler-cpp headers and linker flags via `pkg-config poppler-cpp`.
                 .brew(["pkg-config", "poppler"]),
             ]
         ),
+        // ── CPopplerBridge ───────────────────────────────────────────────────
+        .target(
+            name: "CPopplerBridge",
+            dependencies: ["CPoppler"],
+            publicHeadersPath: "include"
+        ),
         .target(
             name: "PopplerKit",
-            dependencies: ["CPoppler"],
-            swiftSettings: [.interoperabilityMode(.Cxx)]
+            dependencies: ["CPopplerBridge"]
         ),
         // ── PopplerUtils ────────────────────────────────────────────────────
         .target(
             name: "PopplerUtils"
-                // No CPoppler dependency — pure Swift subprocess calls.
-                // No interoperabilityMode needed.
         ),
         .testTarget(
             name: "PopplerKitTests",
             dependencies: ["PopplerKit", "PopplerUtils"],
-            resources: [.process("Resources")],
-            swiftSettings: [.interoperabilityMode(.Cxx)]
+            resources: [.process("Resources")]
         ),
     ],
     swiftLanguageModes: [.v6],

@@ -1,0 +1,4 @@
+module CPopplerBridge {
+    header "poppler_c_api.h"
+    export *
+}

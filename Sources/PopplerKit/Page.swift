@@ -1,5 +1,4 @@
-import CPoppler
-import CxxStdlib
+internal import CPopplerBridge
 import Foundation
 import Synchronization
 
@@ -64,7 +63,7 @@ public final class PopplerPage: @unchecked Sendable {
     }
 
     /// Logical page label (e.g. `"i"`, `"1"`, `"A-1"`), or `nil` if not set.
-    public var label: String? { nilIfEmpty(String(poppler_page_get_label(pagePtr))) }
+    public var label: String? { nilIfEmpty(String(cString: poppler_page_get_label(pagePtr))) }
 
     /// Presentation auto-advance duration in seconds, or `nil` if not set.
     public var slideDuration: Double? {
@@ -82,9 +81,9 @@ public final class PopplerPage: @unchecked Sendable {
         _lock.withLock { _ in
             switch layout {
             case .natural:
-                return String(poppler_page_text_utf8(pagePtr))
+                return String(cString: poppler_page_text_utf8(pagePtr))
             default:
-                return String(poppler_page_text_utf8_with_layout(pagePtr, layout.rawValue))
+                return String(cString: poppler_page_text_utf8_with_layout(pagePtr, layout.rawValue))
             }
         }
     }
@@ -98,13 +97,15 @@ public final class PopplerPage: @unchecked Sendable {
             switch layout {
             case .natural:
                 return String(
-                    poppler_page_text_in_rect(
-                        pagePtr, region.left, region.top, region.right, region.bottom))
+                    cString:
+                        poppler_page_text_in_rect(
+                            pagePtr, region.left, region.top, region.right, region.bottom))
             default:
                 return String(
-                    poppler_page_text_in_rect_with_layout(
-                        pagePtr, region.left, region.top, region.right, region.bottom,
-                        layout.rawValue))
+                    cString:
+                        poppler_page_text_in_rect_with_layout(
+                            pagePtr, region.left, region.top, region.right, region.bottom,
+                            layout.rawValue))
             }
         }
     }
@@ -123,11 +124,11 @@ public final class PopplerPage: @unchecked Sendable {
             let size = Int(poppler_text_list_get_size(listPtr))
             return (0..<size).map { i in
                 let itemPtr = poppler_text_list_get_item(listPtr, Int32(i))
-                let text = String(poppler_text_box_get_text_utf8(itemPtr))
+                let text = String(cString: poppler_text_box_get_text_utf8(itemPtr))
                 let rect = PopplerRect(cRect: poppler_text_box_get_bbox(itemPtr))
                 let fontName: String? =
                     poppler_text_box_has_font_info(itemPtr)
-                    ? nilIfEmpty(String(poppler_text_box_get_font_name(itemPtr)))
+                    ? nilIfEmpty(String(cString: poppler_text_box_get_font_name(itemPtr)))
                     : nil
 
                 let charCount = Int(poppler_text_box_get_text_length(itemPtr))
