@@ -1,4 +1,4 @@
-import CPoppler
+internal import CPopplerBridge
 import Foundation
 
 /// A named destination (bookmark or cross-link target) within a PDF document.

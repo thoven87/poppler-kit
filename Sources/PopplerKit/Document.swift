@@ -1,5 +1,4 @@
-import CPoppler
-import CxxStdlib
+internal import CPopplerBridge
 import Foundation
 import Synchronization
 
@@ -189,22 +188,32 @@ public final class PopplerDocument: @unchecked Sendable {
     // MARK: - Metadata
 
     /// Document title, or `nil` if not embedded.
-    public var title: String? { nilIfEmpty(String(poppler_document_get_title(document))) }
+    public var title: String? { nilIfEmpty(String(cString: poppler_document_get_title(document))) }
 
     /// Document author, or `nil` if not embedded.
-    public var author: String? { nilIfEmpty(String(poppler_document_get_author(document))) }
+    public var author: String? {
+        nilIfEmpty(String(cString: poppler_document_get_author(document)))
+    }
 
     /// Document subject, or `nil` if not embedded.
-    public var subject: String? { nilIfEmpty(String(poppler_document_get_subject(document))) }
+    public var subject: String? {
+        nilIfEmpty(String(cString: poppler_document_get_subject(document)))
+    }
 
     /// Keywords embedded in the document, or `nil` if absent.
-    public var keywords: String? { nilIfEmpty(String(poppler_document_get_keywords(document))) }
+    public var keywords: String? {
+        nilIfEmpty(String(cString: poppler_document_get_keywords(document)))
+    }
 
     /// The application that originally created the source document, or `nil` if absent.
-    public var creator: String? { nilIfEmpty(String(poppler_document_get_creator(document))) }
+    public var creator: String? {
+        nilIfEmpty(String(cString: poppler_document_get_creator(document)))
+    }
 
     /// The application that converted the document to PDF, or `nil` if absent.
-    public var producer: String? { nilIfEmpty(String(poppler_document_get_producer(document))) }
+    public var producer: String? {
+        nilIfEmpty(String(cString: poppler_document_get_producer(document)))
+    }
 
     /// Creation date embedded in the PDF, or `nil` if absent or unparseable.
     public var creationDate: Date? {
@@ -226,7 +235,7 @@ public final class PopplerDocument: @unchecked Sendable {
     /// (title, author, etc.) and may contain Dublin Core, IPTC, and custom schemas.
     /// Parse the returned XML string with `XMLDocument` or a dedicated XMP library.
     public var xmpMetadata: String? {
-        nilIfEmpty(String(poppler_document_get_metadata(document)))
+        nilIfEmpty(String(cString: poppler_document_get_metadata(document)))
     }
 
     /// The document's PDF identifier as `(permanent, update)` hex strings,
@@ -238,8 +247,8 @@ public final class PopplerDocument: @unchecked Sendable {
     /// Together they uniquely identify a specific revision of a document.
     public var pdfID: (permanent: String, update: String)? {
         guard poppler_document_has_pdf_id(document) else { return nil }
-        let p = String(poppler_document_get_permanent_id(document))
-        let u = String(poppler_document_get_update_id(document))
+        let p = String(cString: poppler_document_get_permanent_id(document))
+        let u = String(cString: poppler_document_get_update_id(document))
         guard !p.isEmpty || !u.isEmpty else { return nil }
         return (p, u)
     }
@@ -382,14 +391,14 @@ public final class PopplerDocument: @unchecked Sendable {
         let listPtr = poppler_document_get_info_keys(document)
         defer { poppler_delete_string_list(listPtr) }
         let count = Int(poppler_string_list_get_size(listPtr))
-        return (0..<count).map { String(poppler_string_list_get_item(listPtr, Int32($0))) }
+        return (0..<count).map { String(cString: poppler_string_list_get_item(listPtr, Int32($0))) }
     }
 
     /// Returns the value for an arbitrary info-dictionary key, or `nil` if absent.
     ///
     /// - Parameter key: Case-sensitive key name (e.g. `"Title"`, `"Keywords"`, `"Company"`).
     public func infoValue(forKey key: String) -> String? {
-        nilIfEmpty(String(poppler_document_get_info_key(document, key)))
+        nilIfEmpty(String(cString: poppler_document_get_info_key(document, key)))
     }
 
     // MARK: - Persistence

@@ -1,4 +1,4 @@
-import CPoppler
+internal import CPopplerBridge
 import Foundation
 import Synchronization
 
