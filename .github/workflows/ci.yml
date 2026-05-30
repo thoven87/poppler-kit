@@ -73,4 +73,5 @@ jobs:
         run: swift build --build-tests --configuration debug -Xswiftc -enable-testing -Xswiftc -warnings-as-errors -Xcc -Werror --sanitize address --disable-xctest
       - name: Run Tests
         run: |
+          LSAN_OPTIONS="suppressions=$(pwd)/lsan_suppressions.txt" \
           swift test --skip-build --configuration debug --disable-xctest

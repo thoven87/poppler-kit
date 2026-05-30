@@ -1,0 +1,18 @@
+# LeakSanitizer suppressions for poppler-kit CI.
+#
+# Only benign, unfixable process-lifetime allocations are suppressed here.
+# Real memory errors (use-after-free, buffer overflows, etc.) are still caught
+# by AddressSanitizer and are not affected by these suppressions.
+
+# ── Swift regex engine ────────────────────────────────────────────────────────
+# nonisolated(unsafe) static let Regex<...> values (captionRegex, labelRegex,
+# doublesRegex) are compiled once at first use via swift::threading_impl::once_slow
+# and held for the process lifetime. The allocations are reachable — this is
+# intentional singleton behaviour, not a real leak.
+leak:swift::threading_impl::once_slow
+
+# ── libfontconfig / libexpat (third-party) ────────────────────────────────────
+# poppler calls GlobalParams::findSystemFontFile → FcConfigSubstituteWithPat
+# which triggers XML parsing via expat. These allocations are internal to
+# fontconfig and cannot be controlled from user code.
+leak:FcConfigSubstituteWithPat

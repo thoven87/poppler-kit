@@ -17,6 +17,14 @@ let package = Package(
         /// Layout analysis on top of PopplerKit.
         .library(name: "PopplerLayout", targets: ["PopplerLayout"]),
     ],
+    dependencies: [
+        // swift-subprocess replaces Foundation.Process in PopplerUtils,
+        // eliminating withCheckedThrowingContinuation bridges and Pipe retain cycles.
+        .package(
+            url: "https://github.com/swiftlang/swift-subprocess.git",
+            .upToNextMinor(from: "0.5.0")
+        )
+    ],
     targets: [
         // ── CPoppler ─────────────────────────────────────────────────────────
         // pkg-config shim for libpoppler-cpp (public C++ API headers + -lpoppler-cpp).
@@ -76,8 +84,13 @@ let package = Package(
         ),
 
         // ── PopplerUtils ─────────────────────────────────────────────────────
+        // swift-subprocess replaces Foundation.Process so there is no
+        // withCheckedThrowingContinuation bridge and no Pipe retain cycle.
         .target(
-            name: "PopplerUtils"
+            name: "PopplerUtils",
+            dependencies: [
+                .product(name: "Subprocess", package: "swift-subprocess")
+            ]
         ),
 
         .testTarget(
