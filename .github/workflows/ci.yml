@@ -37,30 +37,33 @@ jobs:
           apt-get update -q
           apt-get install -y --no-install-recommends \
             build-essential cmake pkg-config wget xz-utils \
-            libjpeg-dev libopenjp2-7-dev libfontconfig1-dev \
-            libglib2.0-dev libnss3-dev libtiff-dev \
-            liblcms2-dev libpng-dev zlib1g-dev libcairo2-dev
+            libfreetype-dev libfontconfig-dev libjpeg-dev libpng-dev libtiff-dev \
+            libopenjp2-7-dev zlib1g-dev liblcms2-dev libnss3-dev libcairo2-dev
 
       # Build and install poppler 26.05.0 from source.
-      # cmake auto-detects available features; we only override the install
-      # prefix (so pkg-config finds poppler-cpp.pc in /usr/lib/pkgconfig)
-      # and disable Qt bindings (not needed and avoids pulling Qt deps).
+      # Flags mirror the Dockerfile.example exactly so CI and container builds
+      # use identical cmake configuration.
       - name: Build and install poppler 26.05.0
         run: |
           cd /tmp
           wget -q https://poppler.freedesktop.org/poppler-26.05.0.tar.xz
-          tar -xf poppler-26.05.0.tar.xz
-          cd poppler-26.05.0
-          mkdir build && cd build
-          cmake .. \
+          tar -xJf poppler-26.05.0.tar.xz
+          cmake -S poppler-26.05.0 -B poppler-build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr \
+            -DENABLE_BOOST=OFF \
             -DENABLE_QT5=OFF \
             -DENABLE_QT6=OFF \
-            -DENABLE_GPGME=OFF \
-            -DENABLE_BOOST=OFF
-          make -j"$(nproc)"
-          make install
+            -DENABLE_GLIB=OFF \
+            -DENABLE_LIBCURL=OFF \
+            -DENABLE_CPP=ON \
+            -DENABLE_UTILS=ON \
+            -DENABLE_LIBOPENJPEG=openjpeg2 \
+            -DBUILD_GTK_TESTS=OFF \
+            -DBUILD_CPP_TESTS=OFF \
+            -DBUILD_MANUAL_TESTS=OFF
+          cmake --build poppler-build --parallel "$(nproc)"
+          cmake --install poppler-build
           ldconfig
           pkg-config --modversion poppler-cpp
 

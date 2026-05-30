@@ -19,10 +19,23 @@
 #include <poppler-page-transition.h>
 #include <poppler-font.h>
 // ── Lower-level poppler headers (require C++20 and -lpoppler) ─────────────────
+//
+// Include-path difference between platforms:
+//   macOS Homebrew: pkg-config adds -I.../include/poppler → <PDFDoc.h> resolves directly.
+//   Linux cmake:    pkg-config adds -I/usr/include/poppler/cpp + -I/usr/include
+//                   → PDFDoc.h lives at /usr/include/poppler/PDFDoc.h, so the
+//                     poppler/ prefix is required.
+#ifdef __APPLE__
 #include <PDFDoc.h>
 #include <OutputDev.h>
 #include <GfxState.h>
 #include <goo/GooString.h>
+#else
+#include <poppler/PDFDoc.h>
+#include <poppler/OutputDev.h>
+#include <poppler/GfxState.h>
+#include <poppler/goo/GooString.h>
+#endif
 #include <algorithm>
 #include <memory>
 #include <optional>
