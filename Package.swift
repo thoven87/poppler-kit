@@ -19,7 +19,7 @@ let package = Package(
     ],
     targets: [
         // ── CPoppler ─────────────────────────────────────────────────────────
-        // pkg-config shim for libpoppler-cpp (header search path + -lpoppler-cpp).
+        // pkg-config shim for libpoppler-cpp (public C++ API headers + -lpoppler-cpp).
         .systemLibrary(
             name: "CPoppler",
             pkgConfig: "poppler-cpp",
@@ -29,18 +29,34 @@ let package = Package(
             ]
         ),
 
+        // ── CPopplerCore ─────────────────────────────────────────────────────
+        // pkg-config shim for the core poppler library.
+        //
+        // Its Cflags include -I.../include/poppler on both macOS (Homebrew) and
+        // Linux (cmake source build), which puts the lower-level internal headers
+        // (PDFDoc.h, OutputDev.h, GfxState.h, goo/GooString.h) on the search
+        // path.  CPopplerBridge depends on this so that #include <PDFDoc.h>
+        // resolves correctly on every platform without conditional guards.
+        .systemLibrary(
+            name: "CPopplerCore",
+            pkgConfig: "poppler",
+            providers: [
+                .apt(["libpoppler-dev"]),
+                .brew(["poppler"]),
+            ]
+        ),
+
         // ── CPopplerBridge ───────────────────────────────────────────────────
         // Pure-C ABI layer compiled as C++20.
         // C++20 is required because the lower-level poppler headers (PDFDoc.h,
         // GfxState.h, OutputDev.h) use std::starts_with, std::span, and
         // `requires`-clauses introduced in C++20.
         //
-        // Links -lpoppler (the lower-level library) in addition to -lpoppler-cpp
-        // so that PDFDoc, OutputDev, and GfxState symbols resolve at link time.
-        // The -L search path is already provided by CPoppler's pkg-config flags.
+        // Depends on both CPoppler (public C++ API) and CPopplerCore (internal
+        // headers + -lpoppler symbol resolution).
         .target(
             name: "CPopplerBridge",
-            dependencies: ["CPoppler"],
+            dependencies: ["CPoppler", "CPopplerCore"],
             publicHeadersPath: "include",
             linkerSettings: [
                 .linkedLibrary("poppler")

@@ -1,0 +1,12 @@
+// CPopplerCore is a pkg-config shim whose sole purpose is to add the
+// -I.../include/poppler search path (from `pkg-config poppler`) to every
+// target that depends on it.  That path is where the lower-level internal
+// headers (PDFDoc.h, OutputDev.h, GfxState.h, goo/GooString.h) live after
+// a cmake source build with -DENABLE_UNSTABLE_API_ABI_HEADERS=ON.
+//
+// No Swift-importable headers are exposed here; the module exists only so
+// that SwiftPM runs pkg-config and propagates the resulting Cflags.
+module CPopplerCore [system] {
+    link "poppler"
+    export *
+}

@@ -36,6 +36,7 @@ RUN cd /tmp \
          -DENABLE_LIBCURL=OFF \
          -DENABLE_CPP=ON \
          -DENABLE_UTILS=ON \
+         -DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
          -DENABLE_LIBOPENJPEG=openjpeg2 \
          -DBUILD_GTK_TESTS=OFF \
          -DBUILD_CPP_TESTS=OFF \
