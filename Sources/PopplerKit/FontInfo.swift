@@ -1,5 +1,4 @@
 internal import CPopplerBridge
-import Foundation
 
 /// Metadata about a single font referenced or embedded in a PDF document.
 public struct PopplerFontInfo: Sendable {

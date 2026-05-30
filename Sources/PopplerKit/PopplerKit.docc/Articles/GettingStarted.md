@@ -48,8 +48,8 @@ cmake -S poppler-26.05.0 -B poppler-build \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
   -DENABLE_BOOST=OFF -DENABLE_QT5=OFF -DENABLE_QT6=OFF \
-  -DENABLE_GLIB=OFF -DENABLE_LIBCURL=OFF \
-  -DENABLE_CPP=ON -DENABLE_UTILS=ON \
+  -DENABLE_GLIB=OFF -DENABLE_GPGME=OFF -DENABLE_LIBCURL=OFF \
+  -DENABLE_CPP=ON -DENABLE_UTILS=ON -DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
   -DENABLE_LIBOPENJPEG=openjpeg2
 
 cmake --build poppler-build --parallel "$(nproc)"
@@ -122,7 +122,7 @@ for try await pageText in doc.textStream() {
 }
 ```
 
-The stream is cancellable — stopping the consuming `Task` halts iteration cleanly.
+The stream is cancellable — each step checks `Task.checkCancellation()`, so cancelling the enclosing `Task` or breaking from the loop halts iteration cleanly with no task leak.
 
 ## Next steps
 

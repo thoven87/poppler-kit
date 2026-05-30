@@ -1,5 +1,10 @@
 internal import CPopplerBridge
-import Foundation
+
+#if canImport(FoundationEssentials)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 /// A file attachment embedded within a PDF document.
 public struct PopplerEmbeddedFile: Sendable {

@@ -1,5 +1,4 @@
 internal import CPopplerBridge
-import Foundation
 
 /// A rectangle in PDF coordinate space (PDF points; 1 pt = 1⁄72 inch).
 ///

@@ -1,5 +1,3 @@
-import Foundation
-
 /// Errors that can occur when interacting with PopplerKit.
 public enum PopplerError: Error, CustomStringConvertible {
 

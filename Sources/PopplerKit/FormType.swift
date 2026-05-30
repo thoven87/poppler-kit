@@ -1,5 +1,3 @@
-import Foundation
-
 /// The type of interactive form embedded in a PDF document.
 /// Maps to `poppler::document::form_type` (an `enum class`).
 public enum PopplerFormType: Int32, Sendable {

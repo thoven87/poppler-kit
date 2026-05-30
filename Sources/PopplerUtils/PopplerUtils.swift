@@ -1,4 +1,11 @@
 import Foundation
+import Subprocess
+
+#if canImport(System)
+    import System
+#else
+    import SystemPackage
+#endif
 
 // MARK: - Errors
 
@@ -90,35 +97,25 @@ public struct PopplerUtils: Sendable {
 
     @discardableResult
     private static func run(_ binary: String, arguments: [String]) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: binary)
-            process.arguments = arguments
-            let out = Pipe()
-            let err = Pipe()
-            process.standardOutput = out
-            process.standardError = err
-            process.terminationHandler = { proc in
-                let stdout =
-                    String(
-                        data: out.fileHandleForReading.readDataToEndOfFile(),
-                        encoding: .utf8) ?? ""
-                let stderr =
-                    (String(
-                        data: err.fileHandleForReading.readDataToEndOfFile(),
-                        encoding: .utf8) ?? "")
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-                if proc.terminationStatus == 0 {
-                    continuation.resume(returning: stdout)
-                } else {
-                    continuation.resume(
-                        throwing: PopplerUtilsError.processFailed(
-                            status: proc.terminationStatus, stderr: stderr))
-                }
-            }
-            do { try process.run() } catch {
-                continuation.resume(throwing: PopplerUtilsError.launchFailed(underlying: error))
-            }
+        let result = try await Subprocess.run(
+            .path(FilePath(binary)),
+            arguments: .init(arguments),
+            output: .string(limit: 256 * 1_024 * 1_024),
+            error: .string(limit: 64 * 1_024)
+        )
+        switch result.terminationStatus {
+        case .exited(0):
+            return result.standardOutput ?? ""
+        case .exited(let code):
+            throw PopplerUtilsError.processFailed(
+                status: code,
+                stderr: (result.standardError ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        default:
+            throw PopplerUtilsError.processFailed(
+                status: -1,
+                stderr: (result.standardError ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            )
         }
     }
 
@@ -178,29 +175,27 @@ public struct PopplerUtils: Sendable {
             at: outputDirectory, withIntermediateDirectories: true)
         // pdfdetach -saveall writes to the current working directory;
         // we temporarily set it so files land in outputDirectory.
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: try resolve("pdfdetach"))
-        process.arguments = ["-saveall", pdfURL.path]
-        process.currentDirectoryURL = outputDirectory
-        let err = Pipe()
-        process.standardError = err
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            process.terminationHandler = { proc in
-                if proc.terminationStatus == 0 {
-                    cont.resume()
-                } else {
-                    let e =
-                        (String(
-                            data: err.fileHandleForReading.readDataToEndOfFile(),
-                            encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                    cont.resume(
-                        throwing: PopplerUtilsError.processFailed(
-                            status: proc.terminationStatus, stderr: e))
-                }
-            }
-            do { try process.run() } catch {
-                cont.resume(throwing: PopplerUtilsError.launchFailed(underlying: error))
-            }
+        // pdfdetach -saveall writes to the current working directory;
+        // swift-subprocess's workingDirectory places output in outputDirectory.
+        let result = try await Subprocess.run(
+            .path(FilePath(try resolve("pdfdetach"))),
+            arguments: .init(["-saveall", pdfURL.path]),
+            workingDirectory: FilePath(outputDirectory.path),
+            output: .discarded,
+            error: .string(limit: 64 * 1_024)
+        )
+        switch result.terminationStatus {
+        case .exited(0): break
+        case .exited(let code):
+            throw PopplerUtilsError.processFailed(
+                status: code,
+                stderr: (result.standardError ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        default:
+            throw PopplerUtilsError.processFailed(
+                status: -1,
+                stderr: (result.standardError ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            )
         }
         return
             (try? FileManager.default.contentsOfDirectory(

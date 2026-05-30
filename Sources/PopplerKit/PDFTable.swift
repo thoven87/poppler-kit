@@ -1,4 +1,8 @@
-import Foundation
+#if canImport(FoundationEssentials)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 // MARK: - PDFTable
 
@@ -26,6 +30,10 @@ public struct PDFTable: Sendable {
         /// All non-empty cells, keyed by the full reconstructed column-header string.
         public let cells: [String: String]
 
+        public init(cells: [String: String]) {
+            self.cells = cells
+        }
+
         /// Returns the cell under the column whose header is **exactly** `header`.
         public subscript(header: String) -> String? {
             guard let v = cells[header], !v.isEmpty else { return nil }
@@ -39,14 +47,20 @@ public struct PDFTable: Sendable {
         /// is not known in advance, e.g. `row.cell(containing: "TCN")` matches a
         /// header reconstructed as either `"TCN"` or `"TCN ID"`.
         public func cell(containing keyword: String) -> String? {
-            cells.first {
-                !$0.value.isEmpty
-                    && $0.key.localizedCaseInsensitiveContains(keyword)
+            // Pre-lowercase once; avoids a redundant allocation on every key check.
+            let lowerKeyword = keyword.lowercased()
+            return cells.first {
+                !$0.value.isEmpty && $0.key.lowercased().contains(lowerKeyword)
             }?.value
         }
     }
 
     // MARK: - Table
+
+    public init(headers: [String], rows: [Row]) {
+        self.headers = headers
+        self.rows = rows
+    }
 
     /// Ordered column headers (left → right).
     ///
@@ -130,8 +144,8 @@ extension PopplerPage {
                 let leftmost =
                     row
                     .sorted { $0.boundingBox.left < $1.boundingBox.left }
-                    .first { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
-                return leftmost?.text.trimmingCharacters(in: .whitespaces).first?.isNumber == true
+                    .first { !$0.text.trimmingWhitespace().isEmpty }
+                return leftmost?.text.trimmingWhitespace().first?.isNumber == true
             }
 
         // 1. Sort top → bottom, left → right
@@ -237,7 +251,7 @@ extension PopplerPage {
             let name =
                 cluster
                 .sorted { $0.boundingBox.top < $1.boundingBox.top }
-                .map { $0.text.trimmingCharacters(in: .whitespaces) }
+                .map { $0.text.trimmingWhitespace() }
                 .filter { !$0.isEmpty }
                 .joined(separator: " ")
             let cx =
@@ -286,7 +300,7 @@ extension PopplerPage {
 
             var cells: [String: String] = [:]
             for (ci, texts) in colTexts where ci < headers.count {
-                let v = texts.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+                let v = texts.joined(separator: " ").trimmingWhitespace()
                 if !v.isEmpty { cells[headers[ci]] = v }
             }
             return cells.isEmpty ? nil : PDFTable.Row(cells: cells)

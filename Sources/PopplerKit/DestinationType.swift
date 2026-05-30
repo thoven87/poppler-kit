@@ -1,5 +1,3 @@
-import Foundation
-
 /// The type of a named PDF destination, which determines which coordinate fields
 /// on `PopplerDestination` are meaningful.
 /// Maps to `poppler::destination::type_enum`.

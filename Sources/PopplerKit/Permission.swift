@@ -1,5 +1,3 @@
-import Foundation
-
 /// The set of operations the document owner has authorised.
 ///
 /// For **unencrypted** documents all permissions are implicitly granted

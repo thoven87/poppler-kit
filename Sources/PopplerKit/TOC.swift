@@ -1,5 +1,4 @@
 internal import CPopplerBridge
-import Foundation
 
 /// Represents an item in the Table of Contents (Outline) of a PDF document.
 /// This acts as a node in a tree structure.

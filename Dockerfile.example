@@ -1,39 +1,72 @@
 # ==============================================================================
-# Example Dockerfile for GCP Cloud Run
+# Example Dockerfile for a Swift server application using PopplerKit
+# (GCP Cloud Run, Fly.io, AWS ECS, or any container runtime)
 # ==============================================================================
-# This shows how to deploy a Swift 6 application that depends on PopplerKit.
-# GCP Cloud Run uses Linux containers (usually Debian or Ubuntu-based).
+#
+# Three-stage build:
+#   1. poppler-builder  — compiles poppler 26.05.0 from source
+#   2. app-builder      — compiles the Swift application (reuses stage 1)
+#   3. runtime          — minimal image with only what is needed at run time
+#
+# The poppler build stage is cached independently. When only Swift sources
+# change, Docker reuses the cached poppler layer and rebuilds only stage 2.
+#
+# Replace every occurrence of `YourApp` with your executable target name.
 
-# Stage 1: Build
-FROM swift:6.0-jammy as builder
+# ── Stage 1: build poppler 26.05.0 from source ───────────────────────────────
+FROM swift:6.3 AS poppler-builder
 
-# 1. Install system dependencies required to build the CPoppler system library.
-# We need `libpoppler-cpp-dev` which includes the headers and pkg-config files.
-RUN apt-get update && apt-get install -y \
-    libpoppler-cpp-dev \
-    pkg-config \
+RUN apt-get update -q && apt-get install -y --no-install-recommends \
+      build-essential cmake wget pkg-config xz-utils \
+      libfreetype-dev libfontconfig-dev libjpeg-dev libpng-dev libtiff-dev \
+      libopenjp2-7-dev zlib1g-dev liblcms2-dev libnss3-dev libcairo2-dev \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+RUN cd /tmp \
+    && wget -q https://poppler.freedesktop.org/poppler-26.05.0.tar.xz \
+    && tar -xJf poppler-26.05.0.tar.xz \
+    && cmake -S poppler-26.05.0 -B poppler-build \
+         -DCMAKE_BUILD_TYPE=Release \
+         -DCMAKE_INSTALL_PREFIX=/usr \
+         -DENABLE_BOOST=OFF \
+         -DENABLE_QT5=OFF \
+         -DENABLE_QT6=OFF \
+         -DENABLE_GLIB=OFF \
+         -DENABLE_GPGME=OFF \
+         -DENABLE_LIBCURL=OFF \
+         -DENABLE_CPP=ON \
+         -DENABLE_UTILS=ON \
+         -DENABLE_UNSTABLE_API_ABI_HEADERS=ON \
+         -DENABLE_LIBOPENJPEG=openjpeg2 \
+         -DBUILD_GTK_TESTS=OFF \
+         -DBUILD_CPP_TESTS=OFF \
+         -DBUILD_MANUAL_TESTS=OFF \
+    && cmake --build poppler-build --parallel "$(nproc)" \
+    && cmake --install poppler-build \
+    && ldconfig
+
+# ── Stage 2: build the Swift application ─────────────────────────────────────
+FROM poppler-builder AS app-builder
+
+WORKDIR /build
 COPY . .
+RUN swift build -c release --product YourApp
 
-# 2. Build the application
-# Replace `YourAppExecutable` with the actual name of your executable target
-RUN swift build -c release
+# ── Stage 3: minimal runtime image ───────────────────────────────────────────
+# swift:6.3-slim includes the Swift runtime libraries so the binary can start.
+# A bare ubuntu image would require copying dozens of Swift dylibs manually.
+FROM swift:6.3-slim
 
-# Stage 2: Runtime
-FROM ubuntu:jammy
+# Copy the poppler shared libraries built in stage 1.
+COPY --from=poppler-builder /usr/lib/libpoppler*.so* /usr/lib/
+# Copy CLI tools only if your application uses PopplerUtils (subprocess-based).
+# Remove the next line if you only use PopplerKit (the in-process C++ binding).
+COPY --from=poppler-builder /usr/bin/pdf*            /usr/bin/
 
-# 3. Install runtime dependencies.
-# We only need the shared libraries at runtime, not the `-dev` headers.
-RUN apt-get update && apt-get install -y \
-    libpoppler-cpp0v5 \
-    && rm -rf /var/lib/apt/lists/*
+RUN ldconfig
 
-# 4. Copy the compiled Swift executable
-# Replace `YourAppExecutable` with the actual name of your executable
-# COPY --from=builder /app/.build/release/YourAppExecutable /usr/local/bin/
+# Copy the compiled application binary.
+COPY --from=app-builder /build/.build/release/YourApp /usr/local/bin/app
 
 EXPOSE 8080
-
-# CMD ["YourAppExecutable"]
+ENTRYPOINT ["/usr/local/bin/app"]

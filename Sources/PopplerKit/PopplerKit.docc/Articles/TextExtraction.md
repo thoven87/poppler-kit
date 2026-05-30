@@ -15,8 +15,10 @@ Choose the right API for your document size, layout, and precision needs.
 
 ## Streaming (recommended for large files)
 
-`textStream` yields one string per non-empty page without loading all pages into memory at once.
-Blank and image-only pages are silently skipped.
+`textStream` returns a `PageTextSequence` — a concrete `AsyncSequence` that drives production
+directly on the caller's task. No separate `Task` is spawned, so back-pressure is structural
+(the next page is extracted only when you ask for it) and cancellation is handled automatically
+via `Task.checkCancellation()`. Blank and image-only pages are silently skipped.
 
 ```swift
 for try await pageText in doc.textStream() {

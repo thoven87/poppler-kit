@@ -1,5 +1,10 @@
 internal import CPopplerBridge
-import Foundation
+
+#if canImport(FoundationEssentials)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 public enum PopplerImageFormat: Int, Sendable {
     case invalid = 0

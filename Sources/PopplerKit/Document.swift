@@ -1,6 +1,11 @@
 internal import CPopplerBridge
-import Foundation
 import Synchronization
+
+#if canImport(FoundationEssentials)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 /// A Swift wrapper around a Poppler PDF document.
 ///
@@ -46,7 +51,10 @@ public final class PopplerDocument: @unchecked Sendable {
     //
     // Pure scalar metadata reads (get_pages, get_title, is_encrypted, …)
     // do NOT go through this lock — they are genuinely read-only.
-    private let _lock = Mutex<Void>(())
+    //
+    // `package` so PopplerPage and PopplerLayout can acquire it for
+    // document-level operations without exposing it publicly.
+    package let _lock = Mutex<Void>(())
 
     private init(document: PopplerDocPtr) {
         self.document = document
@@ -267,6 +275,31 @@ public final class PopplerDocument: @unchecked Sendable {
 
     // MARK: - Heuristics
 
+    /// Fraction of characters in the first page that are the Unicode replacement
+    /// character U+FFFD (\u{FFFD}).
+    ///
+    /// A ratio ≥ 0.30 strongly indicates a CID-keyed font without a ToUnicode
+    /// mapping — the text layer exists but is unreadable.  In this case:
+    /// - `hasExtractableText` may return `true` (there IS a text layer)
+    /// - but the extracted text is meaningless replacement characters
+    ///
+    /// Route documents where this exceeds 0.30 to an OCR pipeline, just as
+    /// you would route documents where `hasExtractableText` is `false`.
+    ///
+    /// ```swift
+    /// if !doc.hasExtractableText || doc.replacementCharRatio > 0.30 {
+    ///     // send to OCR
+    /// }
+    /// ```
+    public var replacementCharRatio: Double {
+        guard let p = try? page(at: 0) else { return 0 }
+        let text = p.text()
+        guard !text.isEmpty else { return 0 }
+        let total = text.unicodeScalars.count
+        let replacements = text.unicodeScalars.filter { $0.value == 0xFFFD }.count
+        return Double(replacements) / Double(total)
+    }
+
     /// `true` if the document appears to contain an embedded text layer.
     ///
     /// Samples up to five pages; returns `true` as soon as any page yields more than
@@ -276,7 +309,7 @@ public final class PopplerDocument: @unchecked Sendable {
         let limit = min(pageCount, 5)
         for i in 0..<limit {
             guard let p = try? page(at: i) else { continue }
-            if p.text().trimmingCharacters(in: .whitespacesAndNewlines).count >= 20 {
+            if p.text().trimmingWhitespace().count >= 20 {
                 return true
             }
         }
@@ -364,7 +397,7 @@ public final class PopplerDocument: @unchecked Sendable {
             guard let ptr = poppler_document_create_page_by_label(document, label) else {
                 throw PopplerError.invalidPage
             }
-            return PopplerPage(page: ptr)
+            return PopplerPage(page: ptr, docPtr: document, document: self)
         }
     }
 
@@ -376,7 +409,7 @@ public final class PopplerDocument: @unchecked Sendable {
             guard let ptr = poppler_document_create_page(document, Int32(index)) else {
                 throw PopplerError.invalidPage
             }
-            return PopplerPage(page: ptr)
+            return PopplerPage(page: ptr, docPtr: document, pageIndex: Int32(index), document: self)
         }
     }
 
@@ -498,7 +531,8 @@ public final class PopplerDocument: @unchecked Sendable {
             var results: [(Int, T)] = []
             results.reserveCapacity(pageCount)
             for try await pair in group { results.append(pair) }
-            return results.sorted { $0.0 < $1.0 }.map(\.1)
+            results.sort { $0.0 < $1.0 }  // sort in-place; avoids an intermediate Array copy
+            return results.map(\.1)
         }
     }
 

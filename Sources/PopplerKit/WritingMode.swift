@@ -1,5 +1,3 @@
-import Foundation
-
 /// The direction glyphs are laid out within a `PopplerTextBox`.
 /// Maps to `poppler::text_box::writing_mode_enum`.
 public enum PopplerWritingMode: Int32, Sendable {

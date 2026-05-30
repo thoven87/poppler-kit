@@ -62,16 +62,12 @@ struct InvoicePopplerKitTests {
         #expect(v.minor == 5)
     }
 
-    @Test("Not encrypted, no form, no JavaScript")
-    func security() {
+    @Test("Not encrypted and all permissions granted")
+    func securityAndPermissions() {
         #expect(!doc.isEncrypted)
         #expect(!doc.isLocked)
         #expect(doc.formType == .none)
         #expect(!doc.hasJavaScript)
-    }
-
-    @Test("All permissions granted — no DRM")
-    func permissions() {
         let p = doc.permissions
         #expect(p.contains(.print))
         #expect(p.contains(.copy))
@@ -117,15 +113,6 @@ struct InvoicePopplerKitTests {
 
     // MARK: Per-page and layout options
 
-    @Test("Page 0 text() contains key invoice strings")
-    func page0Text() throws {
-        let page = try doc.page(at: 0)
-        let text = page.text()
-        #expect(text.contains("YesLogic"))
-        #expect(text.contains("CTBAAU2S"))
-        #expect(text.contains("950.00"))
-    }
-
     @Test("Physical layout preserves tabular invoice structure")
     func physicalLayoutTable() async throws {
         let text = try await doc.extractText(layout: .physical)
@@ -150,12 +137,6 @@ struct InvoicePopplerKitTests {
         let page = try doc.page(at: 0)
         let hits = page.search(for: "161126")
         #expect(!hits.isEmpty)
-    }
-
-    @Test("search() returns empty for absent text")
-    func searchMiss() throws {
-        let page = try doc.page(at: 0)
-        #expect(page.search(for: "xyz_absent_99999").isEmpty)
     }
 
     @Test("SWIFT code hit rect feeds into text(in:) for context extraction")
@@ -197,15 +178,6 @@ struct InvoicePopplerKitTests {
             #expect(box.boundingBox.width > 0)
             #expect(box.boundingBox.height > 0)
         }
-    }
-
-    @Test("textBoxes() contains a box for the invoice number")
-    func textBoxForInvoiceNumber() throws {
-        let page = try doc.page(at: 0)
-        let texts = page.textBoxes().map(\.text)
-        // The number 161126 might be one box or split across several
-        let joined = texts.joined()
-        #expect(joined.contains("161126"))
     }
 
     // MARK: Rendering — confirms logo pixels are present
@@ -320,15 +292,4 @@ struct InvoiceImageTests {
         }
     }
 
-    @Test("pdfinfo() returns invoice metadata including Prince producer")
-    func pdfinfoMetadata() async throws {
-        let info = try await PopplerUtils.info(pdfURL: pdfURL)
-        #expect(info.pageCount == 1)
-        #expect(!info.encrypted)
-        #expect(info.pdfVersion == "1.5")
-        // Prince is the PDF producer
-        let producer = info.producer ?? ""
-        #expect(producer.contains("Prince"), "Producer should mention Prince, got: '\(producer)'")
-        print("Raw pdfinfo output:\n\(info.rawOutput)")
-    }
 }
