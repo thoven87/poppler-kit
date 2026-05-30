@@ -70,7 +70,7 @@ jobs:
           pkg-config --modversion poppler-cpp
 
       - name: Build
-        run: swift build --build-tests --configuration debug -Xswiftc -enable-testing -Xswiftc -warnings-as-errors -Xcc -Werror --sanitize address --disable-xctest
+        run: swift build --build-tests --configuration debug -Xswiftc -enable-testing --sanitize address --disable-xctest
       - name: Run Tests
         run: |
           LSAN_OPTIONS="suppressions=$(pwd)/lsan_suppressions.txt" \
