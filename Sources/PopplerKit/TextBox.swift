@@ -1,5 +1,4 @@
 internal import CPopplerBridge
-import Foundation
 
 /// A distinct run of text on a page, with physical bounding coordinates.
 ///

@@ -1,5 +1,4 @@
 internal import CPopplerBridge
-import Foundation
 import Synchronization
 
 /// A Swift wrapper around a single page of a Poppler document.
@@ -22,13 +21,25 @@ import Synchronization
 public final class PopplerPage: @unchecked Sendable {
 
     internal let pagePtr: PopplerPagePtr  // set once at init, never mutated
+    internal let docPtr: PopplerDocPtr  // raw pointer for bridge calls
+    internal let pageIndex: Int32  // 0-based; -1 if unknown (label-lookup pages)
 
-    // Serialises text-extraction and search operations that may trigger
-    // poppler's internal TextOutputDev / page cache updates.
-    // Geometric reads (page_rect, label, orientation, duration) are lock-free.
-    private let _lock = Mutex<Void>(())
+    // Keeps the owning PopplerDocument alive for the page's lifetime.
+    private let _document: PopplerDocument
 
-    internal init(page: PopplerPagePtr) { self.pagePtr = page }
+    // Serialises text, search, and rendering.  Geometric reads are lock-free.
+    // `package` so PopplerRenderer can acquire it (page lock → renderer lock).
+    package let _lock = Mutex<Void>(())
+
+    internal init(
+        page: PopplerPagePtr, docPtr: PopplerDocPtr, pageIndex: Int32 = -1,
+        document: PopplerDocument
+    ) {
+        self.pagePtr = page
+        self.docPtr = docPtr
+        self.pageIndex = pageIndex
+        self._document = document
+    }
 
     deinit { poppler_delete_page(pagePtr) }
 
@@ -195,6 +206,56 @@ public final class PopplerPage: @unchecked Sendable {
             guard let ptr = poppler_page_get_transition(pagePtr) else { return nil }
             defer { poppler_delete_page_transition(ptr) }
             return PopplerPageTransition(transitionPtr: ptr)
+        }
+    }
+
+    // MARK: - Line art & invisible text
+    //
+    // Both methods create a transient PDFDoc and call displayPage() with a
+    // custom OutputDev — a document-level operation serialised on _document._lock.
+
+    /// Line segments drawn by the page’s vector graphics content.
+    ///
+    /// Useful for detecting table borders, rules, and other structural lines.
+    /// Returns an empty array when the page was loaded from raw `Data` (the
+    /// low-level `PDFDoc` is only available for file-based documents).
+    ///
+    /// Safe to call concurrently from multiple tasks — serialised through the
+    /// owning document’s lock at the document granularity.
+    public func lineArtSegments() -> [PopplerLineArtSegment] {
+        guard pageIndex >= 0 else { return [] }
+        return _document._lock.withLock { _ in
+            let listPtr = poppler_page_get_line_segments(docPtr, pageIndex)
+            defer { poppler_delete_line_segment_list(listPtr) }
+            let count = Int(poppler_line_segment_list_get_size(listPtr))
+            return (0..<count).map { i in
+                let s = poppler_line_segment_list_get_item(listPtr, Int32(i))
+                return PopplerLineArtSegment(
+                    x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2,
+                    r: s.r, g: s.g, b: s.b, lineWidth: s.lineWidth
+                )
+            }
+        }
+    }
+
+    /// Bounding boxes of text characters with PDF render mode 3 (invisible).
+    ///
+    /// Invisible text is a common prompt-injection vector in PDFs. This method
+    /// returns the approximate bounding boxes of such characters so the caller
+    /// can filter or flag them.
+    /// Returns an empty array for raw-data-loaded documents.
+    ///
+    /// Safe to call concurrently from multiple tasks — serialised through the
+    /// owning document’s lock at the document granularity.
+    public func invisibleTextBoundingBoxes() -> [PopplerRect] {
+        guard pageIndex >= 0 else { return [] }
+        return _document._lock.withLock { _ in
+            let listPtr = poppler_page_get_invisible_text_bboxes(docPtr, pageIndex)
+            defer { poppler_delete_rect_list(listPtr) }
+            let count = Int(poppler_rect_list_get_size(listPtr))
+            return (0..<count).map { i in
+                PopplerRect(cRect: poppler_rect_list_get_item(listPtr, Int32(i)))
+            }
         }
     }
 

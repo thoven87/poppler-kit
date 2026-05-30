@@ -1,5 +1,3 @@
-import Foundation
-
 /// One of the five PDF page box regions.
 ///
 /// Each box is a rectangle in PDF points (1 pt = 1⁄72 inch) that defines

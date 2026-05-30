@@ -1,5 +1,3 @@
-import Foundation
-
 /// How PDF pages should be laid out when the document is opened in a viewer.
 /// Maps to `poppler::document::page_layout_enum`.
 public enum PopplerPageLayout: Int32, Sendable {

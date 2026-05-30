@@ -122,7 +122,7 @@ for try await pageText in doc.textStream() {
 }
 ```
 
-The stream is cancellable — stopping the consuming `Task` halts iteration cleanly.
+The stream is cancellable — each step checks `Task.checkCancellation()`, so cancelling the enclosing `Task` or breaking from the loop halts iteration cleanly with no task leak.
 
 ## Next steps
 

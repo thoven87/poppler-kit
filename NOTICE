@@ -1,0 +1,26 @@
+poppler-kit
+Copyright 2024-2026 Michel Stevenson
+
+Licensed under the Apache License, Version 2.0 (see LICENSE file).
+
+──────────────────────────────────────────────────────────────────────────────
+THIRD-PARTY ATTRIBUTIONS
+──────────────────────────────────────────────────────────────────────────────
+
+Test fixture PDFs
+  The following PDF files in Tests/PopplerKitTests/Resources/ are redistributed
+  from OpenDataLoader PDF (https://github.com/opendataloader-project/opendataloader-pdf),
+  Copyright 2025-2026 Hancom, Inc., Apache License, Version 2.0:
+
+    issue-336-conto-economico-bialetti.pdf
+    1901.03003.pdf
+    chinese_scan.pdf
+
+  Full license text: https://www.apache.org/licenses/LICENSE-2.0
+
+XYCutSorter  (Sources/PopplerLayout/XYCutSorter.swift)
+  Based on the XY-Cut++ reading-order algorithm described in arXiv:2504.10258.
+
+libpoppler-cpp
+  License: GPL-2.0-or-later / LGPL-2.1-or-later
+  https://poppler.freedesktop.org

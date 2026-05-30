@@ -257,6 +257,51 @@ int    poppler_page_transition_get_angle(PopplerPageTransitionPtr transition);
 double poppler_page_transition_get_scale(PopplerPageTransitionPtr transition);
 bool   poppler_page_transition_is_rectangular(PopplerPageTransitionPtr transition);
 
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Line art (PDF drawing operators)
+//
+// Captures horizontal and vertical line segments drawn by the page's graphics
+// content stream (PDF `S`/`f`/`B` operators).  Used by PopplerLayout for
+// bordered-table detection without image rendering.
+//
+// Coordinates are in PDF page space (origin bottom-left, y increases upward),
+// consistent with the coordinate system used by text_box bounding boxes.
+//
+// Color components are in [0.0, 1.0].
+// ─────────────────────────────────────────────────────────────────────────────
+
+typedef struct {
+    double x1, y1, x2, y2;   /* endpoints in PDF page coordinates            */
+    double r, g, b;           /* stroke or fill color, [0.0, 1.0]             */
+    double lineWidth;         /* stroke width in PDF points (0 for filled)    */
+} PopplerLineSegment;
+
+struct PopplerLineSegListHandle;
+typedef struct PopplerLineSegListHandle *PopplerLineSegListPtr;
+
+PopplerLineSegListPtr poppler_page_get_line_segments(PopplerDocPtr doc, int pageNumber);
+void        poppler_delete_line_segment_list(PopplerLineSegListPtr list);
+int         poppler_line_segment_list_get_size(PopplerLineSegListPtr list);
+PopplerLineSegment poppler_line_segment_list_get_item(PopplerLineSegListPtr list, int index);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Invisible text (render mode 3)
+//
+// Returns bounding boxes of text characters drawn with PDF text rendering
+// mode 3 (neither fill nor stroke — truly invisible).  This is the mechanism
+// used to embed hidden prompt-injection text in PDFs.
+//
+// The returned rects are in PDF page coordinates.
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct PopplerRectListHandle;
+typedef struct PopplerRectListHandle *PopplerRectListPtr;
+
+PopplerRectListPtr poppler_page_get_invisible_text_bboxes(PopplerDocPtr doc, int pageNumber);
+void        poppler_delete_rect_list(PopplerRectListPtr list);
+int         poppler_rect_list_get_size(PopplerRectListPtr list);
+PopplerRect poppler_rect_list_get_item(PopplerRectListPtr list, int index);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

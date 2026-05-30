@@ -1,5 +1,3 @@
-import Foundation
-
 /// Controls the text-extraction algorithm applied when reading a page's text content.
 ///
 /// Equivalent `pdftotext` flags for reference:

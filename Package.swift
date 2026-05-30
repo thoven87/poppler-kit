@@ -1,6 +1,4 @@
 // swift-tools-version: 6.2
-// The swift-tools-version declares the minimum version of Swift required to build this package.
-
 import PackageDescription
 
 let package = Package(
@@ -14,14 +12,14 @@ let package = Package(
         .library(name: "PopplerKit", targets: ["PopplerKit"]),
 
         /// Subprocess-backed library — wraps the `poppler-utils` CLI tools.
-        /// Provides features outside `libpoppler-cpp`: split, merge, embedded-image
-        /// extraction, SVG/PS/EPS rendering, and digital-signature inspection.
-        /// Requires `poppler-utils` installed via `apt-get` or `brew`.
         .library(name: "PopplerUtils", targets: ["PopplerUtils"]),
+
+        /// Layout analysis on top of PopplerKit.
+        .library(name: "PopplerLayout", targets: ["PopplerLayout"]),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
+        // ── CPoppler ─────────────────────────────────────────────────────────
+        // pkg-config shim for libpoppler-cpp (header search path + -lpoppler-cpp).
         .systemLibrary(
             name: "CPoppler",
             pkgConfig: "poppler-cpp",
@@ -30,26 +28,49 @@ let package = Package(
                 .brew(["pkg-config", "poppler"]),
             ]
         ),
+
         // ── CPopplerBridge ───────────────────────────────────────────────────
+        // Pure-C ABI layer compiled as C++20.
+        // C++20 is required because the lower-level poppler headers (PDFDoc.h,
+        // GfxState.h, OutputDev.h) use std::starts_with, std::span, and
+        // `requires`-clauses introduced in C++20.
+        //
+        // Links -lpoppler (the lower-level library) in addition to -lpoppler-cpp
+        // so that PDFDoc, OutputDev, and GfxState symbols resolve at link time.
+        // The -L search path is already provided by CPoppler's pkg-config flags.
         .target(
             name: "CPopplerBridge",
             dependencies: ["CPoppler"],
-            publicHeadersPath: "include"
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedLibrary("poppler")
+            ]
         ),
+
+        // ── PopplerKit ───────────────────────────────────────────────────────
         .target(
             name: "PopplerKit",
             dependencies: ["CPopplerBridge"]
         ),
-        // ── PopplerUtils ────────────────────────────────────────────────────
+
+        // ── PopplerLayout ────────────────────────────────────────────────────
+        .target(
+            name: "PopplerLayout",
+            dependencies: ["PopplerKit"]
+        ),
+
+        // ── PopplerUtils ─────────────────────────────────────────────────────
         .target(
             name: "PopplerUtils"
         ),
+
         .testTarget(
             name: "PopplerKitTests",
-            dependencies: ["PopplerKit", "PopplerUtils"],
+            dependencies: ["PopplerKit", "PopplerUtils", "PopplerLayout"],
             resources: [.process("Resources")]
         ),
     ],
     swiftLanguageModes: [.v6],
-    cxxLanguageStandard: .cxx17
+    // C++20 is required by poppler's lower-level headers (PDFDoc.h, GfxState.h, etc.)
+    cxxLanguageStandard: .cxx20
 )

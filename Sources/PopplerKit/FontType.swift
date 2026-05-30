@@ -1,5 +1,3 @@
-import Foundation
-
 /// The encoding standard of a font referenced or embedded in a PDF.
 /// Maps to `poppler::font_info::type_enum`.
 ///

@@ -22,8 +22,11 @@ more than 20 non-whitespace characters.
 
 ## Streaming pages (recommended)
 
-`rasterStream` yields each page as encoded `Data` as soon as it is rendered, without waiting for
-the whole document:
+`rasterStream` returns a `PageRasterSequence` — a concrete `AsyncSequence` that drives
+rendering directly on the caller's task. No separate `Task` is spawned: back-pressure is
+structural (the next page is rendered only when you ask for it) and cancellation is handled
+automatically via `Task.checkCancellation()`. A single `PopplerRenderer` is created at the
+start of iteration and reused across all pages.
 
 ```swift
 for try await imageData in doc.rasterStream(xres: 150, yres: 150, format: .png) {
@@ -39,9 +42,6 @@ for try await imageData in doc.rasterStream(
 ) {
     upload(imageData)
 }
-```
-
-The stream is fully cancellable.
 
 ## Base64 for LLM pipelines
 

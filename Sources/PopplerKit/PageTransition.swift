@@ -1,5 +1,4 @@
 internal import CPopplerBridge
-import Foundation
 
 /// The visual style of a page-to-page transition in a PDF presentation.
 public enum PopplerPageTransitionType: Int, Sendable {

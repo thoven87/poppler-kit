@@ -1,6 +1,11 @@
 internal import CPopplerBridge
-import Foundation
 import Synchronization
+
+#if canImport(FoundationEssentials)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 /// Renders PDF pages to raster image buffers or encoded image files.
 ///
@@ -68,22 +73,26 @@ public final class PopplerRenderer: @unchecked Sendable {
 
     /// Renders a page to an uncompressed pixel buffer.
     ///
-    /// Safe to call from multiple concurrent tasks on a shared renderer —
-    /// the lock serialises access to the underlying `page_renderer`.
+    /// Safe to call concurrently on a shared renderer — serialised through the
+    /// renderer’s lock.  Also safe to mix with `page.text()` on the same page:
+    /// acquires `page._lock` before `renderer._state` (consistent order,
+    /// no deadlock).
     public func render(
         page: PopplerPage,
         xres: Double = 72.0,
         yres: Double = 72.0
     ) -> PopplerImage? {
-        _state.withLock { rendererPtr -> PopplerImage? in
-            guard
-                let imgPtr = poppler_renderer_render_page(
-                    rendererPtr, page.pagePtr, xres, yres
-                )
-            else { return nil }
-            defer { poppler_image_delete(imgPtr) }
-            guard poppler_image_is_valid(imgPtr) else { return nil }
-            return PopplerImage(imagePtr: imgPtr)
+        page._lock.withLock { _ in
+            _state.withLock { rendererPtr -> PopplerImage? in
+                guard
+                    let imgPtr = poppler_renderer_render_page(
+                        rendererPtr, page.pagePtr, xres, yres
+                    )
+                else { return nil }
+                defer { poppler_image_delete(imgPtr) }
+                guard poppler_image_is_valid(imgPtr) else { return nil }
+                return PopplerImage(imagePtr: imgPtr)
+            }
         }
     }
 
@@ -91,34 +100,36 @@ public final class PopplerRenderer: @unchecked Sendable {
 
     /// Renders a page and encodes it as PNG or JPEG bytes.
     ///
-    /// Safe to call from multiple concurrent tasks on a shared renderer —
-    /// the lock serialises access to the underlying `page_renderer`.
+    /// Safe to call concurrently on a shared renderer.  Same lock order as
+    /// `render(page:xres:yres:)`.
     public func renderToData(
         page: PopplerPage,
         xres: Double = 150.0,
         yres: Double = 150.0,
         format: PopplerRasterFormat = .png
     ) -> Data? {
-        _state.withLock { rendererPtr -> Data? in
-            guard
-                let imgPtr = poppler_renderer_render_page(
-                    rendererPtr, page.pagePtr, xres, yres
-                )
-            else { return nil }
-            defer { poppler_image_delete(imgPtr) }
-            guard poppler_image_is_valid(imgPtr) else { return nil }
+        page._lock.withLock { _ in
+            _state.withLock { rendererPtr -> Data? in
+                guard
+                    let imgPtr = poppler_renderer_render_page(
+                        rendererPtr, page.pagePtr, xres, yres
+                    )
+                else { return nil }
+                defer { poppler_image_delete(imgPtr) }
+                guard poppler_image_is_valid(imgPtr) else { return nil }
 
-            let tmpURL = FileManager.default.temporaryDirectory
-                .appendingPathComponent("\(UUID().uuidString).\(format.fileExtension)")
-            defer { try? FileManager.default.removeItem(at: tmpURL) }
+                let tmpURL = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("\(UUID().uuidString).\(format.fileExtension)")
+                defer { try? FileManager.default.removeItem(at: tmpURL) }
 
-            guard
-                poppler_image_save_to_path(
-                    imgPtr, tmpURL.path, format.rawValue, Int32(xres)
-                )
-            else { return nil }
+                guard
+                    poppler_image_save_to_path(
+                        imgPtr, tmpURL.path, format.rawValue, Int32(xres)
+                    )
+                else { return nil }
 
-            return try? Data(contentsOf: tmpURL)
-        }
+                return try? Data(contentsOf: tmpURL)
+            }
+        }  // page._lock
     }
 }

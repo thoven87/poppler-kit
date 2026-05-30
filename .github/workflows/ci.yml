@@ -65,7 +65,7 @@ jobs:
           pkg-config --modversion poppler-cpp
 
       - name: Build
-        run: swift build
-
-      - name: Test
-        run: swift test
+        run: swift build --build-tests --configuration debug -Xswiftc -enable-testing -Xswiftc -warnings-as-errors -Xcc -Werror --sanitize address --disable-xctest
+      - name: Run Tests
+        run: |
+          swift test --skip-build --configuration debug --disable-xctest

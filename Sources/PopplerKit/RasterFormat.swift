@@ -1,5 +1,3 @@
-import Foundation
-
 /// The encoded image format produced when rasterizing PDF pages.
 public enum PopplerRasterFormat: String, Sendable {
 

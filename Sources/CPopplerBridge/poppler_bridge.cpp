@@ -1,6 +1,6 @@
 // poppler_bridge.cpp — C++ implementation of the pure-C poppler_c_api.h
 //
-// Compiled as C++17; never seen by Swift.  Swift targets import only the
+// Compiled as C++20; never seen by Swift.  Swift targets import only the
 // pure-C header (poppler_c_api.h) so they need no C++ interop mode.
 //
 // String-returning functions use per-function thread_local std::string
@@ -18,6 +18,14 @@
 #include <poppler-destination.h>
 #include <poppler-page-transition.h>
 #include <poppler-font.h>
+// ── Lower-level poppler headers (require C++20 and -lpoppler) ─────────────────
+#include <PDFDoc.h>
+#include <OutputDev.h>
+#include <GfxState.h>
+#include <goo/GooString.h>
+#include <algorithm>
+#include <memory>
+#include <optional>
 #include <string>
 #include <map>
 #include <vector>
@@ -41,15 +49,57 @@ static_assert(
     "Linux: build from source https://poppler.freedesktop.org/");
 
 // ─────────────────────────────────────────────────────────────────────────────
+// MARK: - PopplerDocWrapper
+//
+// Heap-allocated document handle.  `cpp` is the poppler-cpp wrapper used for
+// all existing bridge functions.
+//
+// For operations that require a lower-level PDFDoc (line art, invisible text),
+// we create a *transient* PDFDoc from the stored file path inside the function
+// and destroy it before returning.  This avoids keeping two PDFDoc objects
+// alive simultaneously, which corrupts poppler's GlobalParams reference counts
+// when documents are created and destroyed in quick succession.
+//
+// Raw-data documents (loaded via load_from_raw_data) leave filePath empty;
+// line art / invisible-text functions return empty results for them.
+// ─────────────────────────────────────────────────────────────────────────────
+
+struct PopplerDocWrapper {
+    poppler::document* cpp;
+    std::string        filePath;   // empty for raw-data loads
+    std::string        ownerPw;
+    std::string        userPw;
+};
+
+static inline PopplerDocWrapper* toWrapper(PopplerDocPtr p) noexcept {
+    return reinterpret_cast<PopplerDocWrapper*>(p);
+}
+static inline poppler::document* toDoc(PopplerDocPtr p) noexcept { return toWrapper(p)->cpp; }
+static inline PopplerDocPtr fromWrapper(PopplerDocWrapper* w) noexcept {
+    return reinterpret_cast<PopplerDocPtr>(w);
+}
+
+/// Open a short-lived PDFDoc for a single OutputDev operation.
+/// Returns nullptr for raw-data documents or if the file can't be opened.
+static std::unique_ptr<PDFDoc> openTmpDoc(PopplerDocPtr doc) {
+    auto* w = toWrapper(doc);
+    if (w->filePath.empty()) return nullptr;
+    auto fn = std::make_unique<GooString>(w->filePath);
+    std::optional<GooString> opw, upw;
+    if (!w->ownerPw.empty()) opw = GooString(w->ownerPw);
+    if (!w->userPw.empty())  upw = GooString(w->userPw);
+    auto d = std::make_unique<PDFDoc>(std::move(fn), opw, upw);
+    return d->isOk() ? std::move(d) : nullptr;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MARK: - Opaque handle cast helpers
 //
 // Each opaque handle pointer is reinterpreted as the matching C++ heap object.
 // Lifetimes are always managed by the corresponding delete_* function.
 // ─────────────────────────────────────────────────────────────────────────────
 
-static inline poppler::document*      toDoc    (PopplerDocPtr p)  noexcept { return reinterpret_cast<poppler::document*>(p); }
 static inline poppler::page*          toPage   (PopplerPagePtr p) noexcept { return reinterpret_cast<poppler::page*>(p); }
-static inline PopplerDocPtr           fromDoc  (poppler::document* p) noexcept { return reinterpret_cast<PopplerDocPtr>(p); }
 static inline PopplerPagePtr          fromPage (poppler::page* p)     noexcept { return reinterpret_cast<PopplerPagePtr>(p); }
 
 static inline poppler::page_renderer* toRenderer  (PopplerRendererPtr p)       noexcept { return reinterpret_cast<poppler::page_renderer*>(p); }
@@ -91,29 +141,72 @@ static inline PopplerPageTransitionPtr  fromTransition(poppler::page_transition*
 static inline std::vector<std::string>* toStrList  (PopplerStringListPtr p) noexcept { return reinterpret_cast<std::vector<std::string>*>(p); }
 static inline PopplerStringListPtr      fromStrList(std::vector<std::string>* p) noexcept { return reinterpret_cast<PopplerStringListPtr>(p); }
 
+// Line segments
+static inline std::vector<PopplerLineSegment>* toSegList(PopplerLineSegListPtr p) noexcept {
+    return reinterpret_cast<std::vector<PopplerLineSegment>*>(p);
+}
+static inline PopplerLineSegListPtr fromSegList(std::vector<PopplerLineSegment>* p) noexcept {
+    return reinterpret_cast<PopplerLineSegListPtr>(p);
+}
+
+// Rect list
+static inline std::vector<PopplerRect>* toRectList(PopplerRectListPtr p) noexcept {
+    return reinterpret_cast<std::vector<PopplerRect>*>(p);
+}
+static inline PopplerRectListPtr fromRectList(std::vector<PopplerRect>* p) noexcept {
+    return reinterpret_cast<PopplerRectListPtr>(p);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // MARK: - Document Loading
 // ─────────────────────────────────────────────────────────────────────────────
 
+static PopplerDocPtr makeFileWrapper(
+    poppler::document* cpp,
+    const char* file_name,
+    const char* owner_pw,
+    const char* user_pw)
+{
+    if (!cpp) return nullptr;
+    auto* w = new PopplerDocWrapper();
+    w->cpp     = cpp;
+    w->filePath = file_name   ? file_name  : "";
+    w->ownerPw  = owner_pw    ? owner_pw   : "";
+    w->userPw   = user_pw     ? user_pw    : "";
+    return fromWrapper(w);
+}
+
+static PopplerDocPtr makeDataWrapper(poppler::document* cpp) {
+    if (!cpp) return nullptr;
+    auto* w = new PopplerDocWrapper();
+    w->cpp = cpp;
+    // filePath is left empty — line art / invisible-text ops return empty results.
+    return fromWrapper(w);
+}
+
 PopplerDocPtr poppler_document_load_from_file(const char* file_name) {
     if (!file_name) return nullptr;
-    return fromDoc(poppler::document::load_from_file(file_name));
+    auto cpp = poppler::document::load_from_file(file_name);
+    return makeFileWrapper(cpp, file_name, "", "");
 }
 
 PopplerDocPtr poppler_document_load_from_raw_data(const char* file_data, int length) {
     if (!file_data || length <= 0) return nullptr;
-    return fromDoc(poppler::document::load_from_raw_data(file_data, length));
+    auto cpp = poppler::document::load_from_raw_data(file_data, length);
+    return makeDataWrapper(cpp);
 }
 
 PopplerDocPtr poppler_document_load_from_file_with_password(
     const char* file_name, const char* owner_password, const char* user_password)
 {
     if (!file_name) return nullptr;
-    return fromDoc(poppler::document::load_from_file(
+    auto cpp = poppler::document::load_from_file(
         std::string(file_name),
         owner_password ? std::string(owner_password) : std::string(),
-        user_password  ? std::string(user_password)  : std::string()
-    ));
+        user_password  ? std::string(user_password)  : std::string());
+    return makeFileWrapper(cpp, file_name,
+        owner_password ? owner_password : "",
+        user_password  ? user_password  : "");
 }
 
 PopplerDocPtr poppler_document_load_from_raw_data_with_password(
@@ -121,15 +214,17 @@ PopplerDocPtr poppler_document_load_from_raw_data_with_password(
     const char* owner_password, const char* user_password)
 {
     if (!file_data || length <= 0) return nullptr;
-    return fromDoc(poppler::document::load_from_raw_data(
+    auto cpp = poppler::document::load_from_raw_data(
         file_data, length,
         owner_password ? std::string(owner_password) : std::string(),
-        user_password  ? std::string(user_password)  : std::string()
-    ));
+        user_password  ? std::string(user_password)  : std::string());
+    return makeDataWrapper(cpp);
 }
 
 void poppler_delete_document(PopplerDocPtr doc) {
-    delete toDoc(doc);
+    auto* w = toWrapper(doc);
+    delete w->cpp;  // poppler::document owns its internal PDFDoc; no separate raw to free
+    delete w;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -877,4 +972,202 @@ double poppler_page_transition_get_scale(PopplerPageTransitionPtr transition) {
 
 bool poppler_page_transition_is_rectangular(PopplerPageTransitionPtr transition) {
     return toTransition(transition)->is_rectangular();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - LineArtOutputDev
+//
+// Captures PDF path-painting operators (S = stroke, f/B = fill) as line
+// segments in PDF page coordinates.
+//
+// Coordinate mapping:
+//   PDFDoc::displayPage is called at 72 DPI with rotate=0 and crop=true.
+//   This sets CTM = [1, 0, 0, -1, -cropX, cropY+cropH], so:
+//     device_x = pdf_x - cropX   (but cropX=0 for most pages)
+//     device_y = cropH - pdf_y
+//   state->transform(user_x, user_y) gives device coords; we invert the y-flip:
+//     pdf_y = pageHeight - device_y
+// ─────────────────────────────────────────────────────────────────────────────
+
+class LineArtOutputDev : public OutputDev {
+public:
+    explicit LineArtOutputDev(double pageHeightPt) : pageH(pageHeightPt) {}
+
+    bool upsideDown()         override { return false; }
+    bool useDrawChar()        override { return false; }
+    bool interpretType3Chars()override { return false; }
+    // Path painting operations are NOT gated by needNonText() — they are
+    // always delivered regardless of this flag.
+
+    void stroke(GfxState* state) override { collectPath(state, /*fill=*/false); }
+    void fill  (GfxState* state) override { collectPath(state, /*fill=*/true);  }
+    void eoFill(GfxState* state) override { collectPath(state, /*fill=*/true);  }
+
+    std::vector<PopplerLineSegment> segments;
+
+private:
+    double pageH;
+
+    // Convert a device-space (x, y) — as returned by state->transform() — to
+    // PDF page coordinates (origin bottom-left, y increases upward).
+    std::pair<double,double> toPDF(double dx, double dy) const {
+        return { dx, pageH - dy };
+    }
+
+    void collectPath(GfxState* state, bool fill) {
+        GfxRGB rgb{};
+        if (fill) state->getFillRGB(&rgb);
+        else      state->getStrokeRGB(&rgb);
+
+        double r = colToDbl(rgb.r);
+        double g = colToDbl(rgb.g);
+        double b = colToDbl(rgb.b);
+        double lw = fill ? 0.0 : state->getLineWidth();
+
+        const GfxPath* path = state->getPath();
+        for (int i = 0; i < path->getNumSubpaths(); i++) {
+            const GfxSubpath* sp = path->getSubpath(i);
+            int n = sp->getNumPoints();
+            if (n < 2) continue;
+
+            for (int j = 0; j < n - 1; j++) {
+                if (sp->getCurve(j + 1)) continue;  // skip cubic bezier control points
+
+                double dx1, dy1, dx2, dy2;
+                state->transform(sp->getX(j),   sp->getY(j),   &dx1, &dy1);
+                state->transform(sp->getX(j+1), sp->getY(j+1), &dx2, &dy2);
+
+                auto [px1, py1] = toPDF(dx1, dy1);
+                auto [px2, py2] = toPDF(dx2, dy2);
+
+                segments.push_back({px1, py1, px2, py2, r, g, b, lw});
+            }
+
+            // If subpath is closed, add the closing segment
+            if (sp->isClosed() && n >= 3 && !sp->getCurve(0)) {
+                double dx1, dy1, dx2, dy2;
+                state->transform(sp->getX(n-1), sp->getY(n-1), &dx1, &dy1);
+                state->transform(sp->getX(0),   sp->getY(0),   &dx2, &dy2);
+                auto [px1, py1] = toPDF(dx1, dy1);
+                auto [px2, py2] = toPDF(dx2, dy2);
+                segments.push_back({px1, py1, px2, py2, r, g, b, lw});
+            }
+        }
+    }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - InvisibleTextOutputDev
+//
+// Detects text drawn with PDF text rendering mode 3 (invisible: neither filled
+// nor stroked nor used for clipping).  Mode 3 is used to embed hidden text for
+// prompt injection or machine-readable layers.
+//
+// For each invisible character, we record an approximate bounding box using
+// the character advance vector and the current font size.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class InvisibleTextOutputDev : public OutputDev {
+public:
+    explicit InvisibleTextOutputDev(double pageHeightPt) : pageH(pageHeightPt) {}
+
+    bool upsideDown()         override { return false; }
+    bool useDrawChar()        override { return true;  }   // need per-glyph callbacks
+    bool interpretType3Chars()override { return false; }
+
+    void drawChar(GfxState* state,
+                  double x, double y,         // glyph origin in user space
+                  double dx, double dy,        // advance vector in user space
+                  double /*originX*/, double /*originY*/,
+                  CharCode /*code*/, int /*nBytes*/,
+                  const Unicode* /*u*/, int /*uLen*/) override
+    {
+        // render mode 3 == invisible
+        if (state->getRender() != 3) return;
+
+        // Transform glyph origin and advance endpoint to device space
+        double ox, oy, ex, ey;
+        state->transform(x,      y,      &ox, &oy);
+        state->transform(x + dx, y + dy, &ex, &ey);
+
+        // Convert to PDF page coordinates
+        double px1 = std::min(ox, ex),   py1 = pageH - std::max(oy, ey);
+        double px2 = std::max(ox, ex),   py2 = pageH - std::min(oy, ey);
+
+        // Inflate slightly so very narrow glyphs still produce a usable bbox
+        double fontPt = state->getFontSize();
+        py1 -= fontPt * 0.1;
+        py2 += fontPt * 0.1;
+
+        invisibleRects.push_back({px1, py1, px2, py2});
+    }
+
+    std::vector<PopplerRect> invisibleRects;
+
+private:
+    double pageH;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Line Segment List
+// ─────────────────────────────────────────────────────────────────────────────
+
+PopplerLineSegListPtr poppler_page_get_line_segments(PopplerDocPtr doc, int pageNumber) {
+    auto* segs = new std::vector<PopplerLineSegment>();
+    if (pageNumber < 0) return fromSegList(segs);
+    auto raw = openTmpDoc(doc);   // transient — destroyed at end of scope
+    if (!raw) return fromSegList(segs);
+
+    int pdfPage = pageNumber + 1;
+    if (pdfPage < 1 || pdfPage > raw->getNumPages()) return fromSegList(segs);
+
+    double pageH = raw->getPageCropHeight(pdfPage);
+    LineArtOutputDev dev(pageH);
+    raw->displayPage(&dev, pdfPage, 72, 72, 0, false, true, false);
+    *segs = std::move(dev.segments);
+    return fromSegList(segs);
+}
+
+void poppler_delete_line_segment_list(PopplerLineSegListPtr list) {
+    delete toSegList(list);
+}
+
+int poppler_line_segment_list_get_size(PopplerLineSegListPtr list) {
+    return static_cast<int>(toSegList(list)->size());
+}
+
+PopplerLineSegment poppler_line_segment_list_get_item(PopplerLineSegListPtr list, int index) {
+    return (*toSegList(list))[index];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MARK: - Invisible Text Bounding Boxes
+// ─────────────────────────────────────────────────────────────────────────────
+
+PopplerRectListPtr poppler_page_get_invisible_text_bboxes(PopplerDocPtr doc, int pageNumber) {
+    auto* rects = new std::vector<PopplerRect>();
+    if (pageNumber < 0) return fromRectList(rects);
+    auto raw = openTmpDoc(doc);   // transient — destroyed at end of scope
+    if (!raw) return fromRectList(rects);
+
+    int pdfPage = pageNumber + 1;
+    if (pdfPage < 1 || pdfPage > raw->getNumPages()) return fromRectList(rects);
+
+    double pageH = raw->getPageCropHeight(pdfPage);
+    InvisibleTextOutputDev dev(pageH);
+    raw->displayPage(&dev, pdfPage, 72, 72, 0, false, true, false);
+    *rects = std::move(dev.invisibleRects);
+    return fromRectList(rects);
+}
+
+void poppler_delete_rect_list(PopplerRectListPtr list) {
+    delete toRectList(list);
+}
+
+int poppler_rect_list_get_size(PopplerRectListPtr list) {
+    return static_cast<int>(toRectList(list)->size());
+}
+
+PopplerRect poppler_rect_list_get_item(PopplerRectListPtr list, int index) {
+    return (*toRectList(list))[index];
 }

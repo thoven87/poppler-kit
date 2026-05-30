@@ -44,24 +44,16 @@ struct DocumentAPITests {
 
     // MARK: Security & metadata
 
-    @Test("Document is not encrypted or locked")
-    func notEncrypted() {
+    @Test("Not encrypted, not restricted, no form or JS")
+    func notRestrictedOrEncrypted() {
         #expect(!doc.isEncrypted)
         #expect(!doc.isLocked)
-    }
-
-    @Test("All standard permissions are granted (no DRM)")
-    func fullPermissions() {
         let perms = doc.permissions
         #expect(perms.contains(.print))
         #expect(perms.contains(.copy))
         #expect(perms.contains(.change))
         #expect(perms.contains(.fillForms))
         #expect(perms.contains(.accessibility))
-    }
-
-    @Test("Document contains no interactive form or JavaScript")
-    func noFormOrJS() {
         #expect(doc.formType == .none)
         #expect(!doc.hasJavaScript)
     }
@@ -73,28 +65,12 @@ struct DocumentAPITests {
         #expect(v.minor >= 0 && v.minor <= 9)
     }
 
-    @Test("Metadata properties return without crashing (informational)")
-    func metadataSmokeTest() {
-        // We print rather than assert: the PDF may or may not have these fields set
-        print("Title:    \(doc.title    ?? "(none)")")
-        print("Author:   \(doc.author   ?? "(none)")")
-        print("Creator:  \(doc.creator  ?? "(none)")")
-        print("Producer: \(doc.producer ?? "(none)")")
-        print("Created:  \(doc.creationDate.map { "\($0)" } ?? "(none)")")
-        #expect(doc.pageCount > 0)  // at minimum, the doc loaded
-    }
-
     // MARK: Fonts
 
-    @Test("Document references at least one font")
-    func fontsPresent() {
+    @Test("Document references fonts with non-empty names")
+    func fontsHaveNames() {
         let fonts = doc.fonts()
         #expect(!fonts.isEmpty)
-    }
-
-    @Test("All font entries have non-empty names")
-    func fontNamesNonEmpty() {
-        let fonts = doc.fonts()
         #expect(fonts.allSatisfy { !$0.name.isEmpty })
     }
 
@@ -166,8 +142,8 @@ struct DocumentAPITests {
         #expect((image?.height ?? 0) > 0)
     }
 
-    @Test("renderToData() produces valid PNG for both pages")
-    func renderToDataBothPages() throws {
+    @Test("Pages render to non-empty data")
+    func pagesRenderToData() async throws {
         let renderer = PopplerRenderer()
         renderer.setAntialiasing(true)
         for i in 0..<doc.pageCount {
@@ -176,10 +152,6 @@ struct DocumentAPITests {
             #expect(data != nil, "Page \(i) render returned nil")
             #expect((data?.count ?? 0) > 0, "Page \(i) render returned empty Data")
         }
-    }
-
-    @Test("rasterize() collects both pages as Data")
-    func rasterizeBothPages() async throws {
         let pages = try await doc.rasterize(xres: 72, format: .png)
         #expect(pages.count == 2)
         #expect(pages.allSatisfy { !$0.isEmpty })
@@ -222,6 +194,32 @@ struct DocumentAPITests {
 
         #expect(text.contains("NATIONAL PARTNERSHIP"))
         #expect(count > 0)
+    }
+
+    @Test("Concurrent render + text on the same shared page does not race")
+    func sharedPageRenderAndTextConcurrent() async throws {
+        let page = try doc.page(at: 0)
+        let renderer = PopplerRenderer()
+        renderer.setAntialiasing(true)
+
+        let n = 30  // enough tasks to expose a race if one exists
+        let results = try await withThrowingTaskGroup(of: (Bool, Bool).self) { group in
+            for _ in 0..<n {
+                group.addTask {
+                    // Mix both operations on the SAME page instance.
+                    let hasText = !page.text().isEmpty
+                    let hasImage = renderer.renderToData(page: page, xres: 36) != nil
+                    return (hasText, hasImage)
+                }
+            }
+            var out: [(Bool, Bool)] = []
+            for try await pair in group { out.append(pair) }
+            return out
+        }
+
+        #expect(results.count == n)
+        #expect(results.allSatisfy { $0.0 }, "Every task should extract non-empty text")
+        #expect(results.allSatisfy { $0.1 }, "Every task should produce a rendered image")
     }
 
     // MARK: Document structure

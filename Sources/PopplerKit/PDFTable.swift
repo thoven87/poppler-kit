@@ -1,4 +1,8 @@
-import Foundation
+#if canImport(FoundationEssentials)
+    import FoundationEssentials
+#else
+    import Foundation
+#endif
 
 // MARK: - PDFTable
 
@@ -26,6 +30,10 @@ public struct PDFTable: Sendable {
         /// All non-empty cells, keyed by the full reconstructed column-header string.
         public let cells: [String: String]
 
+        public init(cells: [String: String]) {
+            self.cells = cells
+        }
+
         /// Returns the cell under the column whose header is **exactly** `header`.
         public subscript(header: String) -> String? {
             guard let v = cells[header], !v.isEmpty else { return nil }
@@ -47,6 +55,11 @@ public struct PDFTable: Sendable {
     }
 
     // MARK: - Table
+
+    public init(headers: [String], rows: [Row]) {
+        self.headers = headers
+        self.rows = rows
+    }
 
     /// Ordered column headers (left → right).
     ///

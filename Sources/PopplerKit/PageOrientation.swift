@@ -1,5 +1,3 @@
-import Foundation
-
 /// The physical orientation of a PDF page.
 /// Maps to `poppler::page::orientation_enum`.
 ///
