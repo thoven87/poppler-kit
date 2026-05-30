@@ -55,6 +55,7 @@ jobs:
             -DENABLE_QT5=OFF \
             -DENABLE_QT6=OFF \
             -DENABLE_GLIB=OFF \
+            -DENABLE_GPGME=OFF \
             -DENABLE_LIBCURL=OFF \
             -DENABLE_CPP=ON \
             -DENABLE_UTILS=ON \
