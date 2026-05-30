@@ -143,7 +143,7 @@ public enum LineArtTableDetector {
                 let ci = colBounds.firstIndex(where: { $0.lo <= cx && cx < $0.hi }),
                 let ri = rowBounds.firstIndex(where: { $0.bottom <= cy && cy <= $0.top })
             else { continue }
-            let t = line.text.trimmingCharacters(in: .whitespaces)
+            let t = line.text.trimmingWhitespace()
             if !t.isEmpty {
                 cellText[ri][ci] = cellText[ri][ci].isEmpty ? t : cellText[ri][ci] + " " + t
             }

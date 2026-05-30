@@ -139,8 +139,8 @@ public enum HeaderFooterDetector {
     /// Two lines "match" when their text is identical or differs only by
     /// a sequential integer (page-number counter).
     private static func linesMatch(_ a: LayoutTextLine, _ b: LayoutTextLine) -> Bool {
-        let at = a.text.trimmingCharacters(in: .whitespaces)
-        let bt = b.text.trimmingCharacters(in: .whitespaces)
+        let at = a.text.trimmingWhitespace()
+        let bt = b.text.trimmingWhitespace()
         if at == bt { return true }
         // Check if texts differ only by an integer suffix (page numbers)
         if textsDifferByCounter(at, bt) { return true }

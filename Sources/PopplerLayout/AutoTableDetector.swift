@@ -154,8 +154,8 @@ public enum AutoTableDetector {
             let cells = cellValues(for: line)
             var dict = [String: String]()
             for (i, header) in headers.enumerated() {
-                if let v = cells[i], !v.trimmingCharacters(in: .whitespaces).isEmpty {
-                    dict[header] = v.trimmingCharacters(in: .whitespaces)
+                if let v = cells[i], !v.trimmingWhitespace().isEmpty {
+                    dict[header] = v.trimmingWhitespace()
                 }
             }
             return dict.isEmpty ? nil : PDFTable.Row(cells: dict)

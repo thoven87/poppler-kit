@@ -46,7 +46,7 @@ public struct PageTextSequence: AsyncSequence, Sendable {
                 currentPage += 1
                 let text = try document.page(at: i)
                     .text(layout: layout)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingWhitespace()
                 if !text.isEmpty { return text }
             }
             return nil

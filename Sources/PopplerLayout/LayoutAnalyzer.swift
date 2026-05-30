@@ -169,7 +169,7 @@ extension PopplerDocument {
         return layout.flatMap { pageElements in
             pageElements.compactMap { element -> String? in
                 if removeChrome, element.isChrome { return nil }
-                let t = element.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let t = element.text.trimmingWhitespace()
                 return t.isEmpty ? nil : t
             }
         }.joined(separator: "\n\n")
@@ -233,7 +233,7 @@ extension PopplerDocument {
             }
             if consumedByTable.contains(li) { continue }
 
-            let text = line.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let text = line.text.trimmingWhitespace()
             guard !text.isEmpty else { continue }
             let bb = line.boundingBox
 
@@ -305,8 +305,8 @@ enum ListDetector {
         let text = line.text
         guard let match = text.firstMatch(of: labelRegex) else { return nil }
         // trimmingCharacters(in:) on StringProtocol already returns String — no String() copy needed
-        let label = match.output.1.trimmingCharacters(in: .whitespaces)
-        let body = text[match.range.upperBound...].trimmingCharacters(in: .whitespaces)
+        let label = match.output.1.trimmingWhitespace()
+        let body = text[match.range.upperBound...].trimmingWhitespace()
         guard !body.isEmpty else { return nil }
         return ListItem(label: label, body: body)
     }
@@ -330,7 +330,7 @@ enum ListDetector {
         let labeledCount = line.boxes.filter { labelPrefix(in: $0.text) != nil }.count
         guard labeledCount >= 2 else { return nil }
 
-        let fullText = line.text.trimmingCharacters(in: .whitespaces)
+        let fullText = line.text.trimmingWhitespace()
         if fullText.wholeMatch(of: doublesRegex) != nil { return nil }
 
         var items = [ListItem]()
@@ -339,19 +339,19 @@ enum ListDetector {
 
         func flush() {
             guard let lbl = curLabel else { return }
-            let body = curBody.joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            let body = curBody.joined(separator: " ").trimmingWhitespace()
             if !body.isEmpty { items.append(ListItem(label: lbl, body: body)) }
         }
 
         for box in line.boxes {
-            let t = box.text.trimmingCharacters(in: .whitespaces)
+            let t = box.text.trimmingWhitespace()
             guard !t.isEmpty else { continue }
             if let lbl = labelPrefix(in: t) {
                 flush()
                 curLabel = lbl
                 if let match = t.firstMatch(of: labelRegex) {
                     let remainder = t[match.range.upperBound...]
-                        .trimmingCharacters(in: .whitespaces)
+                        .trimmingWhitespace()
                     curBody = remainder.isEmpty ? [] : [remainder]
                 } else {
                     curBody = []
@@ -368,6 +368,6 @@ enum ListDetector {
     /// Returns the label prefix if `text` starts with a list-label pattern, else `nil`.
     private static func labelPrefix(in text: String) -> String? {
         guard let match = text.firstMatch(of: labelRegex) else { return nil }
-        return match.output.1.trimmingCharacters(in: .whitespaces)
+        return match.output.1.trimmingWhitespace()
     }
 }

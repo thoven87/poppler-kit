@@ -130,7 +130,7 @@ public enum TableStructureNormalizer {
                     cy <= rowTopEdges[$0] && cy >= rowBottomEdges[$0]
                 })
             else { continue }
-            let t = line.text.trimmingCharacters(in: .whitespaces)
+            let t = line.text.trimmingWhitespace()
             if !t.isEmpty {
                 cellText[ri][ci] = cellText[ri][ci].isEmpty ? t : cellText[ri][ci] + " " + t
             }

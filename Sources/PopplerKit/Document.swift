@@ -309,7 +309,7 @@ public final class PopplerDocument: @unchecked Sendable {
         let limit = min(pageCount, 5)
         for i in 0..<limit {
             guard let p = try? page(at: i) else { continue }
-            if p.text().trimmingCharacters(in: .whitespacesAndNewlines).count >= 20 {
+            if p.text().trimmingWhitespace().count >= 20 {
                 return true
             }
         }

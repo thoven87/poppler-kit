@@ -117,7 +117,7 @@ enum CaptionDetector {
         #/(?i)^(?:fig(?:ure)?|table|chart|photo|image|plate|diagram|scheme|algorithm|listing|exhibit|appendix|supplementary)\s*[.:\s]\s*[\dIVXivxA-Fa-f]/#
 
     static func isCaption(_ line: LayoutTextLine) -> Bool {
-        let t = line.text.trimmingCharacters(in: .whitespaces)
+        let t = line.text.trimmingWhitespace()
         return !t.isEmpty && t.firstMatch(of: captionRegex) != nil
     }
 }
